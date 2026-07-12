@@ -20,6 +20,15 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Valida se o :id da rota é um UUID (formato usado pela coluna id no Supabase)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validarIdUUID(req, res, next) {
+  if (!UUID_REGEX.test(req.params.id)) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
+  next();
+}
+
 // ============================================
 // MIDDLEWARES
 // ============================================
@@ -87,7 +96,7 @@ app.post('/api/estudos', async (req, res) => {
 });
 
 // PUT /api/estudos/:id
-app.put('/api/estudos/:id', async (req, res) => {
+app.put('/api/estudos/:id', validarIdUUID, async (req, res) => {
   try {
     const { id } = req.params;
     const { curso, unidade, conteudo, data_estudo, quantidade, erros, desempenho, concluido } = req.body;
@@ -119,7 +128,7 @@ app.put('/api/estudos/:id', async (req, res) => {
 });
 
 // PATCH /api/estudos/:id
-app.patch('/api/estudos/:id', async (req, res) => {
+app.patch('/api/estudos/:id', validarIdUUID, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -142,7 +151,7 @@ app.patch('/api/estudos/:id', async (req, res) => {
 });
 
 // DELETE /api/estudos/:id
-app.delete('/api/estudos/:id', async (req, res) => {
+app.delete('/api/estudos/:id', validarIdUUID, async (req, res) => {
   try {
     const { id } = req.params;
     const { data, error } = await supabase
