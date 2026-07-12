@@ -71,6 +71,7 @@ function carregarDados() {
             estudos = JSON.parse(dados);
             estudos = estudos.map(e => ({
                 ...e,
+                id: String(e.id),
                 quantidade: e.quantidade || 0,
                 erros: e.erros || 0,
                 concluido: e.concluido || false,
@@ -115,7 +116,7 @@ function importarDados(event) {
         try {
             const dados = JSON.parse(e.target.result);
             if (Array.isArray(dados)) {
-                estudos = dados.map(estudo => ({ ...estudo, conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo), sincronizado: false }));
+                estudos = dados.map(estudo => ({ ...estudo, id: String(estudo.id), conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo), sincronizado: false }));
                 let maxCod = 0;
                 estudos.forEach(est => { if (est.codigo && est.codigo > maxCod) maxCod = est.codigo; });
                 estudos.forEach(est => { if (!est.codigo) { maxCod++; est.codigo = maxCod; } });
@@ -149,6 +150,10 @@ async function carregarDoServidor(silencioso = false) {
         if (data && Array.isArray(data)) {
             estudos = data.map(e => ({
                 ...e,
+                id: String(e.id), // a coluna id é bigserial (número); padronizamos
+                                   // como string porque o HTML sempre embute o id
+                                   // como texto em onclick/data-id, e comparações
+                                   // com === entre número e string sempre falham.
                 dataEstudo: e.data_estudo || null,
                 conteudo: e.conteudo || '',
                 desempenho: calcularDesempenho(e),
@@ -193,7 +198,7 @@ async function salvarNoServidor(estudo) {
         });
         if (!response.ok) throw new Error('Erro ao salvar');
         const salvo = await response.json();
-        return { ...salvo, sincronizado: true };
+        return { ...salvo, id: String(salvo.id), sincronizado: true };
     } catch (error) {
         console.error('❌ Erro ao salvar no servidor:', error);
         mostrarToast('Erro ao sincronizar com o servidor. Dados salvos localmente.', 'error');
@@ -236,7 +241,7 @@ async function atualizarStatusNoServidor(estudo, concluido) {
         });
         if (!response.ok) throw new Error('Erro ao atualizar status');
         const salvo = await response.json();
-        return { ...salvo, sincronizado: true };
+        return { ...salvo, id: String(salvo.id), sincronizado: true };
     } catch (error) {
         console.error('❌ Erro ao atualizar status no servidor:', error);
         mostrarToast('Erro ao sincronizar status com o servidor.', 'error');
