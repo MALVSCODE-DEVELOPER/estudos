@@ -25,7 +25,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // ============================================
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Os arquivos estáticos (index.html, script.js, styles.css) estão
+// na RAIZ do projeto, não em uma pasta "public".
+app.use(express.static(__dirname));
 
 // ============================================
 // ROTAS DA API
@@ -161,9 +164,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Fallback para SPA (opcional)
+// Fallback para SPA — não intercepta rotas /api
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Rota não encontrada' });
+  }
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // ============================================
@@ -172,5 +178,5 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📡 Conectado ao Supabase: ${supabaseUrl}`);
-  console.log(`📁 Servindo arquivos estáticos da pasta 'public'`);
+  console.log(`📁 Servindo arquivos estáticos da raiz do projeto`);
 });
