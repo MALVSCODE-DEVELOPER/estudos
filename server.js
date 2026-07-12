@@ -37,7 +37,14 @@ app.use(express.json());
 
 // Os arquivos estáticos (index.html, script.js, styles.css) estão
 // dentro da pasta "public".
-app.use(express.static(path.join(__dirname, 'public')));
+// Cache-Control: no-cache força o navegador a sempre revalidar com o
+// servidor antes de usar uma versão salva, evitando que correções no
+// código fiquem "presas" em cache antigo do navegador do usuário.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 // ============================================
 // ROTAS DA API
