@@ -2,8 +2,7 @@
 // CONFIGURAÇÃO DO BACKEND
 // ============================================
 // Em desenvolvimento local, use:
-const API_URL = 'http://localhost:3000/api';
-
+const API_URL = window.location.origin + '/api';
 // Em produção (Render), altere para:
 // const API_URL = 'https://seu-backend.onrender.com/api';
 
