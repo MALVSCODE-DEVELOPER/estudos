@@ -27,8 +27,8 @@ app.use(cors());
 app.use(express.json());
 
 // Os arquivos estáticos (index.html, script.js, styles.css) estão
-// na RAIZ do projeto, não em uma pasta "public".
-app.use(express.static(__dirname));
+// dentro da pasta "public".
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
 // ROTAS DA API
@@ -169,7 +169,7 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ error: 'Rota não encontrada' });
   }
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============================================
@@ -178,5 +178,5 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📡 Conectado ao Supabase: ${supabaseUrl}`);
-  console.log(`📁 Servindo arquivos estáticos da raiz do projeto`);
+  console.log(`📁 Servindo arquivos estáticos da pasta 'public'`);
 });
