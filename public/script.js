@@ -1,10 +1,9 @@
 // ============================================
-// CONFIGURAÇÃO DO BACKEND
+// CONFIGURAÇÃO – sem URL externa
 // ============================================
-// Em desenvolvimento local, use:
-const API_URL = window.location.origin + '/api';
-// Em produção (Render), altere para:
-// const API_URL = 'https://seu-backend.onrender.com/api';
+// O frontend e o backend estão no mesmo servidor,
+// então usamos caminhos relativos.
+const API_URL = ''; // vazio → as requisições vão para o mesmo domínio
 
 // ============================================
 // ESTADO GLOBAL
@@ -20,12 +19,8 @@ let filtroBusca = '';
 // INICIALIZAÇÃO
 // ============================================
 async function inicializarApp() {
-    // Tentar carregar do servidor primeiro
     const carregado = await carregarDoServidor();
-    if (!carregado) {
-        // Fallback para localStorage
-        carregarDados();
-    }
+    if (!carregado) carregarDados();
     preencherFiltros();
     renderizarTabela();
     atualizarDashboards();
@@ -33,7 +28,7 @@ async function inicializarApp() {
 }
 
 // ============================================
-// PERSISTÊNCIA LOCAL (localStorage)
+// PERSISTÊNCIA LOCAL
 // ============================================
 function carregarDados() {
     const dados = localStorage.getItem('estudosData');
@@ -53,9 +48,7 @@ function carregarDados() {
             let maxCod = 0;
             estudos.forEach(e => { if (e.codigo && e.codigo > maxCod) maxCod = e.codigo; });
             estudos.forEach(e => { if (!e.codigo) { maxCod++; e.codigo = maxCod; } });
-        } catch (e) {
-            estudos = [];
-        }
+        } catch (e) { estudos = []; }
     } else {
         estudos = [];
     }
@@ -87,16 +80,11 @@ function importarDados(event) {
         try {
             const dados = JSON.parse(e.target.result);
             if (Array.isArray(dados)) {
-                estudos = dados.map(estudo => ({
-                    ...estudo,
-                    conteudo: estudo.conteudo || '',
-                    desempenho: calcularDesempenho(estudo)
-                }));
+                estudos = dados.map(estudo => ({ ...estudo, conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo) }));
                 let maxCod = 0;
                 estudos.forEach(est => { if (est.codigo && est.codigo > maxCod) maxCod = est.codigo; });
                 estudos.forEach(est => { if (!est.codigo) { maxCod++; est.codigo = maxCod; } });
                 salvarDados();
-                // Enviar para o servidor (substitui todos)
                 await sincronizarTodosComServidor();
                 preencherFiltros();
                 renderizarTabela();
@@ -114,16 +102,14 @@ function importarDados(event) {
 }
 
 // ============================================
-// COMUNICAÇÃO COM O BACKEND (API)
+// COMUNICAÇÃO COM O BACKEND (caminhos relativos)
 // ============================================
 async function carregarDoServidor() {
     try {
-        const response = await fetch(`${API_URL}/estudos`, {
-            headers: {
-                'Accept': 'application/json'
-            }
+        const response = await fetch('/api/estudos', {
+            headers: { 'Accept': 'application/json' }
         });
-        if (!response.ok) throw new Error('Erro ao carregar do servidor');
+        if (!response.ok) throw new Error('Erro ao carregar');
         const data = await response.json();
         if (data && Array.isArray(data)) {
             estudos = data.map(e => ({
@@ -132,7 +118,6 @@ async function carregarDoServidor() {
                 conteudo: e.conteudo || '',
                 desempenho: calcularDesempenho(e)
             }));
-            // Atualizar localStorage como cache
             salvarDados();
             return true;
         }
@@ -146,7 +131,7 @@ async function carregarDoServidor() {
 async function salvarNoServidor(estudo) {
     try {
         const method = estudo.id ? 'PUT' : 'POST';
-        const url = estudo.id ? `${API_URL}/estudos/${estudo.id}` : `${API_URL}/estudos`;
+        const url = estudo.id ? `/api/estudos/${estudo.id}` : '/api/estudos';
         const response = await fetch(url, {
             method,
             headers: {
@@ -164,9 +149,8 @@ async function salvarNoServidor(estudo) {
                 concluido: estudo.concluido || false
             })
         });
-        if (!response.ok) throw new Error('Erro ao salvar no servidor');
-        const saved = await response.json();
-        return saved;
+        if (!response.ok) throw new Error('Erro ao salvar');
+        return await response.json();
     } catch (error) {
         console.error('❌ Erro ao salvar no servidor:', error);
         mostrarToast('Erro ao sincronizar com o servidor. Dados salvos localmente.', 'error');
@@ -176,13 +160,8 @@ async function salvarNoServidor(estudo) {
 
 async function deletarNoServidor(id) {
     try {
-        const response = await fetch(`${API_URL}/estudos/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        if (!response.ok) throw new Error('Erro ao deletar no servidor');
+        const response = await fetch(`/api/estudos/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Erro ao deletar');
         return true;
     } catch (error) {
         console.error('❌ Erro ao deletar no servidor:', error);
@@ -193,7 +172,7 @@ async function deletarNoServidor(id) {
 
 async function atualizarStatusNoServidor(id, concluido) {
     try {
-        const response = await fetch(`${API_URL}/estudos/${id}`, {
+        const response = await fetch(`/api/estudos/${id}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -655,7 +634,6 @@ async function salvarEstudo() {
         };
         estudos[index] = estudoAtualizado;
         salvarDados();
-        // Enviar para o servidor
         const saved = await salvarNoServidor(estudoAtualizado);
         if (saved) {
             estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo };
@@ -677,10 +655,8 @@ async function salvarEstudo() {
             desempenho,
             concluido
         };
-        // Salvar local primeiro
         estudos.push(novoEstudo);
         salvarDados();
-        // Enviar para o servidor
         const saved = await salvarNoServidor(novoEstudo);
         if (saved) {
             const idx = estudos.findIndex(e => e.id === novoEstudo.id);
@@ -699,10 +675,8 @@ async function salvarEstudo() {
 
 async function excluirEstudo(id) {
     if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
-    // Remover localmente primeiro
     estudos = estudos.filter(e => e.id !== id);
     salvarDados();
-    // Tentar deletar no servidor
     await deletarNoServidor(id);
     preencherFiltros();
     renderizarTabela();
@@ -710,9 +684,6 @@ async function excluirEstudo(id) {
     mostrarToast('Estudo excluído.', 'error');
 }
 
-// ============================================
-// TOGGLE DE CONCLUÍDO (checkbox)
-// ============================================
 async function toggleConcluido(id, checked) {
     const estudo = estudos.find(e => e.id === id);
     if (!estudo) return;
@@ -726,7 +697,6 @@ async function toggleConcluido(id, checked) {
 
     estudo.concluido = checked;
     salvarDados();
-    // Atualizar no servidor
     const saved = await atualizarStatusNoServidor(id, checked);
     if (saved) {
         estudo.concluido = saved.concluido;
@@ -737,17 +707,11 @@ async function toggleConcluido(id, checked) {
     mostrarToast(checked ? 'Estudo concluído!' : 'Conclusão revertida.', checked ? 'success' : 'info');
 }
 
-// ============================================
-// CLIQUE NA LINHA (abre modal na aba Geral)
-// ============================================
 function handleRowClick(event, id) {
     if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('.checkbox-wrapper')) return;
     openModal(id, 'tabGeral');
 }
 
-// ============================================
-// TOASTS
-// ============================================
 function mostrarToast(mensagem, tipo = 'info') {
     document.querySelectorAll('.floating-message').forEach(el => el.remove());
     const div = document.createElement('div');
@@ -761,7 +725,7 @@ function mostrarToast(mensagem, tipo = 'info') {
 }
 
 // ============================================
-// EXPORTAÇÃO PARA O ESCOPO GLOBAL
+// EXPORTAÇÃO GLOBAL
 // ============================================
 window.inicializarApp = inicializarApp;
 window.applyFilters = applyFilters;
