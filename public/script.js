@@ -128,10 +128,19 @@ async function carregarDoServidor() {
     }
 }
 
+// Verifica se o valor é um UUID válido (formato gerado pelo Supabase).
+// IDs temporários criados localmente (ver gerarId()) NÃO são UUIDs,
+// então nunca devem ser usados em PUT/PATCH/DELETE — isso causaria
+// erro 500 no Supabase ("invalid input syntax for type uuid").
+function isUUID(str) {
+    return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 async function salvarNoServidor(estudo) {
     try {
-        const method = estudo.id ? 'PUT' : 'POST';
-        const url = estudo.id ? `/api/estudos/${estudo.id}` : '/api/estudos';
+        const temIdValido = isUUID(estudo.id);
+        const method = temIdValido ? 'PUT' : 'POST';
+        const url = temIdValido ? `/api/estudos/${estudo.id}` : '/api/estudos';
         const response = await fetch(url, {
             method,
             headers: {
@@ -159,6 +168,9 @@ async function salvarNoServidor(estudo) {
 }
 
 async function deletarNoServidor(id) {
+    // Se o id ainda não foi sincronizado com o Supabase (não é UUID),
+    // o registro só existe localmente — não há o que excluir no servidor.
+    if (!isUUID(id)) return true;
     try {
         const response = await fetch(`/api/estudos/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Erro ao deletar');
@@ -171,6 +183,8 @@ async function deletarNoServidor(id) {
 }
 
 async function atualizarStatusNoServidor(id, concluido) {
+    // Registro só local (id não é UUID) ainda não existe no Supabase.
+    if (!isUUID(id)) return null;
     try {
         const response = await fetch(`/api/estudos/${id}`, {
             method: 'PATCH',
