@@ -77,7 +77,8 @@ function carregarDados() {
                 codigo: e.codigo || null,
                 dataEstudo: e.dataEstudo || null,
                 conteudo: e.conteudo || '',
-                desempenho: calcularDesempenho(e)
+                desempenho: calcularDesempenho(e),
+                sincronizado: e.sincronizado !== undefined ? e.sincronizado : true
             }));
             let maxCod = 0;
             estudos.forEach(e => { if (e.codigo && e.codigo > maxCod) maxCod = e.codigo; });
@@ -114,7 +115,7 @@ function importarDados(event) {
         try {
             const dados = JSON.parse(e.target.result);
             if (Array.isArray(dados)) {
-                estudos = dados.map(estudo => ({ ...estudo, conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo) }));
+                estudos = dados.map(estudo => ({ ...estudo, conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo), sincronizado: false }));
                 let maxCod = 0;
                 estudos.forEach(est => { if (est.codigo && est.codigo > maxCod) maxCod = est.codigo; });
                 estudos.forEach(est => { if (!est.codigo) { maxCod++; est.codigo = maxCod; } });
@@ -150,7 +151,8 @@ async function carregarDoServidor(silencioso = false) {
                 ...e,
                 dataEstudo: e.data_estudo || null,
                 conteudo: e.conteudo || '',
-                desempenho: calcularDesempenho(e)
+                desempenho: calcularDesempenho(e),
+                sincronizado: true // veio do servidor: existe de fato no banco
             }));
             salvarDados();
             return true;
@@ -164,17 +166,12 @@ async function carregarDoServidor(silencioso = false) {
     }
 }
 
-// Verifica se o valor é um UUID válido (formato gerado pelo Supabase).
-// IDs temporários criados localmente (ver gerarId()) NÃO são UUIDs,
-// então nunca devem ser usados em PUT/PATCH/DELETE — isso causaria
-// erro 500 no Supabase ("invalid input syntax for type uuid").
-function isUUID(str) {
-    return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-}
-
 async function salvarNoServidor(estudo) {
     try {
-        const temIdValido = isUUID(estudo.id);
+        // Usa a flag explícita "sincronizado" (marcada quando o servidor
+        // já confirmou a existência do registro) em vez de tentar adivinhar
+        // pelo formato do id — a tabela pode usar UUID, inteiro ou outro tipo.
+        const temIdValido = !!estudo.sincronizado;
         const method = temIdValido ? 'PUT' : 'POST';
         const url = temIdValido ? `/api/estudos/${estudo.id}` : '/api/estudos';
         const response = await fetch(url, {
@@ -195,7 +192,8 @@ async function salvarNoServidor(estudo) {
             })
         });
         if (!response.ok) throw new Error('Erro ao salvar');
-        return await response.json();
+        const salvo = await response.json();
+        return { ...salvo, sincronizado: true };
     } catch (error) {
         console.error('❌ Erro ao salvar no servidor:', error);
         mostrarToast('Erro ao sincronizar com o servidor. Dados salvos localmente.', 'error');
@@ -203,16 +201,16 @@ async function salvarNoServidor(estudo) {
     }
 }
 
-async function deletarNoServidor(id) {
-    // Se o id ainda não foi sincronizado com o Supabase (não é UUID),
-    // o registro só existe localmente — não há o que excluir no servidor.
-    if (!isUUID(id)) {
-        console.log('[deletarNoServidor] id local (não-UUID), pulando chamada ao servidor:', id);
+async function deletarNoServidor(estudo) {
+    // Se o registro ainda não foi confirmado pelo servidor, ele só existe
+    // localmente — não há o que excluir no banco de dados.
+    if (!estudo.sincronizado) {
+        console.log('[deletarNoServidor] registro ainda não sincronizado, pulando chamada ao servidor:', estudo.id);
         return true;
     }
     try {
-        console.log('[deletarNoServidor] enviando DELETE para /api/estudos/' + id);
-        const response = await fetch(`/api/estudos/${id}`, { method: 'DELETE' });
+        console.log('[deletarNoServidor] enviando DELETE para /api/estudos/' + estudo.id);
+        const response = await fetch(`/api/estudos/${estudo.id}`, { method: 'DELETE' });
         console.log('[deletarNoServidor] status HTTP recebido:', response.status);
         const corpo = await response.clone().json().catch(() => null);
         console.log('[deletarNoServidor] corpo da resposta:', corpo);
@@ -224,11 +222,11 @@ async function deletarNoServidor(id) {
     }
 }
 
-async function atualizarStatusNoServidor(id, concluido) {
-    // Registro só local (id não é UUID) ainda não existe no Supabase.
-    if (!isUUID(id)) return null;
+async function atualizarStatusNoServidor(estudo, concluido) {
+    // Registro ainda não confirmado pelo servidor: não existe no banco.
+    if (!estudo.sincronizado) return null;
     try {
-        const response = await fetch(`/api/estudos/${id}`, {
+        const response = await fetch(`/api/estudos/${estudo.id}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -237,7 +235,8 @@ async function atualizarStatusNoServidor(id, concluido) {
             body: JSON.stringify({ concluido })
         });
         if (!response.ok) throw new Error('Erro ao atualizar status');
-        return await response.json();
+        const salvo = await response.json();
+        return { ...salvo, sincronizado: true };
     } catch (error) {
         console.error('❌ Erro ao atualizar status no servidor:', error);
         mostrarToast('Erro ao sincronizar status com o servidor.', 'error');
@@ -249,6 +248,10 @@ async function sincronizarTodosComServidor() {
     for (const estudo of estudos) {
         await salvarNoServidor(estudo);
     }
+    // Recarrega do servidor para obter os ids reais atribuídos a cada
+    // registro recém-criado (senão eles ficariam marcados como não
+    // sincronizados para sempre, e cada edição futura criaria um duplicado).
+    await carregarDoServidor(true);
     mostrarToast('Dados sincronizados com o servidor!', 'success');
 }
 
@@ -701,7 +704,7 @@ async function salvarEstudo() {
         salvarDados();
         const saved = await salvarNoServidor(estudoAtualizado);
         if (saved) {
-            estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo };
+            estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo, sincronizado: true };
             salvarDados();
             mostrarToast('Estudo atualizado!', 'success');
         } else {
@@ -720,7 +723,8 @@ async function salvarEstudo() {
             quantidade,
             erros,
             desempenho,
-            concluido
+            concluido,
+            sincronizado: false // ainda não confirmado pelo servidor
         };
         estudos.push(novoEstudo);
         salvarDados();
@@ -728,7 +732,7 @@ async function salvarEstudo() {
         if (saved) {
             const idx = estudos.findIndex(e => e.id === novoEstudo.id);
             if (idx !== -1) {
-                estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo };
+                estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo, sincronizado: true };
                 salvarDados();
             }
             mostrarToast('Estudo adicionado!', 'success');
@@ -749,6 +753,9 @@ async function excluirEstudo(id) {
     if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
     console.log('[excluirEstudo] iniciando exclusão do id:', id);
 
+    const estudo = estudos.find(e => e.id === id);
+    if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
+
     escritasPendentes++;
     try {
         const backup = estudos;
@@ -757,7 +764,7 @@ async function excluirEstudo(id) {
         renderizarTabela();
         atualizarDashboards();
 
-        const sucesso = await deletarNoServidor(id);
+        const sucesso = await deletarNoServidor(estudo);
         console.log('[excluirEstudo] resultado da exclusão no servidor:', sucesso);
 
         if (!sucesso) {
@@ -803,11 +810,11 @@ async function toggleConcluido(id, checked) {
 
     escritasPendentes++;
     try {
-        const saved = await atualizarStatusNoServidor(id, checked);
+        const saved = await atualizarStatusNoServidor(estudo, checked);
         if (saved) {
             estudo.concluido = saved.concluido;
             salvarDados();
-        } else if (isUUID(id)) {
+        } else if (estudo.sincronizado) {
             // Falhou ao sincronizar com o servidor: desfaz a mudança local
             // para não ficar divergente do banco de dados.
             estudo.concluido = anterior;
