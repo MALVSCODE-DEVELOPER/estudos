@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -22,18 +23,15 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // ============================================
 // MIDDLEWARES
 // ============================================
-app.use(cors({
-  origin: '*', // Em produção, restrinja à URL do seu frontend
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Accept']
-}));
+app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
-// ROTAS DA API (públicas, sem token)
+// ROTAS DA API
 // ============================================
 
-// GET /api/estudos – listar todos
+// GET /api/estudos
 app.get('/api/estudos', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -48,13 +46,12 @@ app.get('/api/estudos', async (req, res) => {
   }
 });
 
-// POST /api/estudos – criar
+// POST /api/estudos
 app.post('/api/estudos', async (req, res) => {
   try {
     const { curso, unidade, conteudo, data_estudo, quantidade, erros, desempenho, concluido } = req.body;
     if (!curso) return res.status(400).json({ error: 'Curso é obrigatório' });
 
-    // Buscar próximo código
     const { data: maxData } = await supabase
       .from('estudos')
       .select('codigo')
@@ -86,7 +83,7 @@ app.post('/api/estudos', async (req, res) => {
   }
 });
 
-// PUT /api/estudos/:id – atualizar completo
+// PUT /api/estudos/:id
 app.put('/api/estudos/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -118,7 +115,7 @@ app.put('/api/estudos/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/estudos/:id – atualização parcial
+// PATCH /api/estudos/:id
 app.patch('/api/estudos/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -159,9 +156,14 @@ app.delete('/api/estudos/:id', async (req, res) => {
   }
 });
 
-// Rota de saúde
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Fallback para SPA (opcional)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============================================
@@ -170,4 +172,5 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📡 Conectado ao Supabase: ${supabaseUrl}`);
+  console.log(`📁 Servindo arquivos estáticos da pasta 'public'`);
 });
