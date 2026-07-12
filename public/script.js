@@ -200,14 +200,20 @@ async function salvarNoServidor(estudo) {
 async function deletarNoServidor(id) {
     // Se o id ainda não foi sincronizado com o Supabase (não é UUID),
     // o registro só existe localmente — não há o que excluir no servidor.
-    if (!isUUID(id)) return true;
+    if (!isUUID(id)) {
+        console.log('[deletarNoServidor] id local (não-UUID), pulando chamada ao servidor:', id);
+        return true;
+    }
     try {
+        console.log('[deletarNoServidor] enviando DELETE para /api/estudos/' + id);
         const response = await fetch(`/api/estudos/${id}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error('Erro ao deletar');
+        console.log('[deletarNoServidor] status HTTP recebido:', response.status);
+        const corpo = await response.clone().json().catch(() => null);
+        console.log('[deletarNoServidor] corpo da resposta:', corpo);
+        if (!response.ok) throw new Error('Erro ao deletar: ' + response.status);
         return true;
     } catch (error) {
         console.error('❌ Erro ao deletar no servidor:', error);
-        mostrarToast('Erro ao sincronizar exclusão com o servidor.', 'error');
         return false;
     }
 }
@@ -378,7 +384,9 @@ function renderizarTabela() {
                 </svg>
             </button>` : '';
 
-        const checkboxDisabled = (e.quantidade === 0) ? 'disabled' : '';
+        // Só bloqueia marcar como concluído sem questões cadastradas (quantidade 0).
+        // Se já estiver concluído, o usuário SEMPRE pode desmarcar livremente.
+        const checkboxDisabled = (e.quantidade === 0 && !concluido) ? 'disabled' : '';
 
         html += `<tr class="${rowClass} row-clickable" data-id="${e.id}" onclick="handleRowClick(event, '${e.id}')">
             <td style="text-align:center;">
@@ -723,12 +731,15 @@ async function salvarEstudo() {
 
 async function excluirEstudo(id) {
     if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
+    console.log('[excluirEstudo] iniciando exclusão do id:', id);
+
     estudos = estudos.filter(e => e.id !== id);
     salvarDados();
     renderizarTabela();
     atualizarDashboards();
 
     const sucesso = await deletarNoServidor(id);
+    console.log('[excluirEstudo] resultado da exclusão no servidor:', sucesso);
 
     // Confirma com o servidor o estado real após a exclusão,
     // para evitar qualquer divergência entre tela e banco de dados.
@@ -737,7 +748,11 @@ async function excluirEstudo(id) {
     renderizarTabela();
     atualizarDashboards();
 
-    mostrarToast(sucesso ? 'Estudo excluído.' : 'Não foi possível excluir no servidor.', sucesso ? 'error' : 'error');
+    if (sucesso) {
+        mostrarToast('Estudo excluído.', 'success');
+    } else {
+        mostrarToast('Falha ao excluir no servidor. Veja o Console (F12) para detalhes.', 'error');
+    }
 }
 
 async function toggleConcluido(id, checked) {
