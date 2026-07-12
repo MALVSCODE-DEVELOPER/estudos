@@ -1,4 +1,13 @@
 // ============================================
+// CONFIGURAÇÃO DO BACKEND
+// ============================================
+// Em desenvolvimento local, use:
+const API_URL = 'http://localhost:3000/api';
+
+// Em produção (Render), altere para:
+// const API_URL = 'https://seu-backend.onrender.com/api';
+
+// ============================================
 // ESTADO GLOBAL
 // ============================================
 let estudos = [];
@@ -112,7 +121,6 @@ async function carregarDoServidor() {
     try {
         const response = await fetch(`${API_URL}/estudos`, {
             headers: {
-                'X-Session-Token': SESSION_TOKEN,
                 'Accept': 'application/json'
             }
         });
@@ -144,7 +152,6 @@ async function salvarNoServidor(estudo) {
             method,
             headers: {
                 'Content-Type': 'application/json',
-                'X-Session-Token': SESSION_TOKEN,
                 'Accept': 'application/json'
             },
             body: JSON.stringify({
@@ -173,7 +180,6 @@ async function deletarNoServidor(id) {
         const response = await fetch(`${API_URL}/estudos/${id}`, {
             method: 'DELETE',
             headers: {
-                'X-Session-Token': SESSION_TOKEN,
                 'Accept': 'application/json'
             }
         });
@@ -192,7 +198,6 @@ async function atualizarStatusNoServidor(id, concluido) {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Session-Token': SESSION_TOKEN,
                 'Accept': 'application/json'
             },
             body: JSON.stringify({ concluido })
