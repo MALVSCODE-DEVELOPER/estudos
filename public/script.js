@@ -19,6 +19,12 @@ let filtroBusca = '';
 // INICIALIZAÇÃO
 // ============================================
 let sincronizando = false;
+// Contador de operações de escrita em andamento (salvar, excluir, marcar/desmarcar).
+// Enquanto houver alguma operação pendente, a sincronização automática é pausada
+// para não sobrescrever uma mudança local que ainda não terminou de ser salva
+// no servidor (isso causava registros "voltando" a marcados, exclusões que
+// pareciam não funcionar, e edições que diziam "registro não encontrado").
+let escritasPendentes = 0;
 const INTERVALO_SINCRONIZACAO_MS = 5000;
 
 async function inicializarApp() {
@@ -39,7 +45,7 @@ function iniciarSincronizacaoAutomatica() {
         // o usuário está com o modal de edição aberto (para não
         // atrapalhar o preenchimento do formulário).
         const modalAberto = document.getElementById('formModal')?.style.display === 'flex';
-        if (sincronizando || modalAberto) return;
+        if (sincronizando || modalAberto || escritasPendentes > 0) return;
 
         sincronizando = true;
         try {
@@ -376,7 +382,7 @@ function renderizarTabela() {
             badgeHtml = `<span class="badge badge-desempenho baixo">${desempenho}%</span>`;
         }
         const alertIcon = precisaRevisao ? `
-            <button class="action-btn alert-icon" onclick="event.stopPropagation();abrirModalQuestoes('${e.id}')" title="Precisa de revisão (desempenho < 80%)">
+            <button class="action-btn alert-icon" onclick="event.stopPropagation();abrirEdicaoQuestoes('${e.id}')" title="Precisa de revisão (desempenho < 80%)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                     <line x1="12" y1="9" x2="12" y2="13"/>
@@ -599,7 +605,12 @@ function obterProximoCodigo() {
     return max + 1;
 }
 
-function abrirModalQuestoes(id) {
+// Abre o formulário de edição diretamente na aba "Questões" (usado pelo ícone
+// de alerta de revisão). Tem nome diferente de abrirModalQuestoes() de propósito:
+// antes as duas funções tinham o mesmo nome e a segunda declaração sobrescrevia
+// a primeira, fazendo o card "Questões" do dashboard abrir o formulário de
+// edição em vez do modal de listagem de questões.
+function abrirEdicaoQuestoes(id) {
     openModal(id, 'tabQuestoes');
 }
 
@@ -665,14 +676,16 @@ async function salvarEstudo() {
 
     const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
 
+    escritasPendentes++;
+    try {
     if (editandoId) {
         const index = estudos.findIndex(e => e.id === editandoId);
         if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
         const antigo = estudos[index];
-        let concluido = antigo.concluido;
-        if (quantidade > 0) {
-            concluido = true;
-        }
+        // Preserva o status de concluído que o usuário definiu manualmente pelo
+        // checkbox. Editar o estudo (ex: corrigir o texto da unidade) não deve
+        // marcar o estudo como concluído sozinho.
+        const concluido = antigo.concluido;
         const estudoAtualizado = {
             ...antigo,
             curso,
@@ -696,7 +709,7 @@ async function salvarEstudo() {
         }
     } else {
         const novoCodigo = obterProximoCodigo();
-        const concluido = quantidade > 0;
+        const concluido = false;
         const novoEstudo = {
             id: gerarId(),
             codigo: novoCodigo,
@@ -723,6 +736,9 @@ async function salvarEstudo() {
             mostrarToast('Estudo salvo localmente, mas houve falha ao sincronizar com o servidor.', 'error');
         }
     }
+    } finally {
+        escritasPendentes--;
+    }
     preencherFiltros();
     renderizarTabela();
     atualizarDashboards();
@@ -733,25 +749,38 @@ async function excluirEstudo(id) {
     if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
     console.log('[excluirEstudo] iniciando exclusão do id:', id);
 
-    estudos = estudos.filter(e => e.id !== id);
-    salvarDados();
-    renderizarTabela();
-    atualizarDashboards();
+    escritasPendentes++;
+    try {
+        const backup = estudos;
+        estudos = estudos.filter(e => e.id !== id);
+        salvarDados();
+        renderizarTabela();
+        atualizarDashboards();
 
-    const sucesso = await deletarNoServidor(id);
-    console.log('[excluirEstudo] resultado da exclusão no servidor:', sucesso);
+        const sucesso = await deletarNoServidor(id);
+        console.log('[excluirEstudo] resultado da exclusão no servidor:', sucesso);
 
-    // Confirma com o servidor o estado real após a exclusão,
-    // para evitar qualquer divergência entre tela e banco de dados.
-    await carregarDoServidor(true);
-    preencherFiltros();
-    renderizarTabela();
-    atualizarDashboards();
+        if (!sucesso) {
+            // Falhou no servidor: desfaz a remoção local para não ficar
+            // divergente do banco de dados.
+            estudos = backup;
+            salvarDados();
+            preencherFiltros();
+            renderizarTabela();
+            atualizarDashboards();
+            mostrarToast('Falha ao excluir no servidor. Veja o Console (F12) para detalhes.', 'error');
+            return;
+        }
 
-    if (sucesso) {
+        // Confirma com o servidor o estado real após a exclusão,
+        // para evitar qualquer divergência entre tela e banco de dados.
+        await carregarDoServidor(true);
+        preencherFiltros();
+        renderizarTabela();
+        atualizarDashboards();
         mostrarToast('Estudo excluído.', 'success');
-    } else {
-        mostrarToast('Falha ao excluir no servidor. Veja o Console (F12) para detalhes.', 'error');
+    } finally {
+        escritasPendentes--;
     }
 }
 
@@ -766,16 +795,33 @@ async function toggleConcluido(id, checked) {
         return;
     }
 
+    const anterior = estudo.concluido;
     estudo.concluido = checked;
     salvarDados();
-    const saved = await atualizarStatusNoServidor(id, checked);
-    if (saved) {
-        estudo.concluido = saved.concluido;
-        salvarDados();
-    }
     renderizarTabela();
     atualizarDashboards();
-    mostrarToast(checked ? 'Estudo concluído!' : 'Conclusão revertida.', checked ? 'success' : 'info');
+
+    escritasPendentes++;
+    try {
+        const saved = await atualizarStatusNoServidor(id, checked);
+        if (saved) {
+            estudo.concluido = saved.concluido;
+            salvarDados();
+        } else if (isUUID(id)) {
+            // Falhou ao sincronizar com o servidor: desfaz a mudança local
+            // para não ficar divergente do banco de dados.
+            estudo.concluido = anterior;
+            salvarDados();
+            renderizarTabela();
+            atualizarDashboards();
+            return;
+        }
+        renderizarTabela();
+        atualizarDashboards();
+        mostrarToast(checked ? 'Estudo concluído!' : 'Conclusão revertida.', checked ? 'success' : 'info');
+    } finally {
+        escritasPendentes--;
+    }
 }
 
 function handleRowClick(event, id) {
@@ -812,6 +858,7 @@ window.handleRowClick = handleRowClick;
 window.importarDados = importarDados;
 window.exportarDados = exportarDados;
 window.abrirModalQuestoes = abrirModalQuestoes;
+window.abrirEdicaoQuestoes = abrirEdicaoQuestoes;
 window.abrirModalDesempenho = abrirModalDesempenho;
 window.fecharModalQuestoes = fecharModalQuestoes;
 window.fecharModalDesempenho = fecharModalDesempenho;
