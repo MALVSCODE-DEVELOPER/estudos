@@ -18,6 +18,9 @@ let filtroBusca = '';
 // ============================================
 // INICIALIZAÇÃO
 // ============================================
+let sincronizando = false;
+const INTERVALO_SINCRONIZACAO_MS = 5000;
+
 async function inicializarApp() {
     const carregado = await carregarDoServidor();
     if (!carregado) carregarDados();
@@ -25,6 +28,31 @@ async function inicializarApp() {
     renderizarTabela();
     atualizarDashboards();
     window.addEventListener('beforeunload', () => salvarDados());
+    iniciarSincronizacaoAutomatica();
+}
+
+// Verifica o servidor periodicamente e atualiza a tela sozinho,
+// para refletir mudanças feitas em outras abas/dispositivos.
+function iniciarSincronizacaoAutomatica() {
+    setInterval(async () => {
+        // Evita rodar duas sincronizações ao mesmo tempo, ou enquanto
+        // o usuário está com o modal de edição aberto (para não
+        // atrapalhar o preenchimento do formulário).
+        const modalAberto = document.getElementById('formModal')?.style.display === 'flex';
+        if (sincronizando || modalAberto) return;
+
+        sincronizando = true;
+        try {
+            const carregado = await carregarDoServidor(true);
+            if (carregado) {
+                preencherFiltros();
+                renderizarTabela();
+                atualizarDashboards();
+            }
+        } finally {
+            sincronizando = false;
+        }
+    }, INTERVALO_SINCRONIZACAO_MS);
 }
 
 // ============================================
@@ -104,7 +132,7 @@ function importarDados(event) {
 // ============================================
 // COMUNICAÇÃO COM O BACKEND (caminhos relativos)
 // ============================================
-async function carregarDoServidor() {
+async function carregarDoServidor(silencioso = false) {
     try {
         const response = await fetch('/api/estudos', {
             headers: { 'Accept': 'application/json' }
@@ -123,7 +151,9 @@ async function carregarDoServidor() {
         }
         return false;
     } catch (error) {
-        console.warn('⚠️ Não foi possível carregar do servidor, usando fallback local.', error);
+        if (!silencioso) {
+            console.warn('⚠️ Não foi possível carregar do servidor, usando fallback local.', error);
+        }
         return false;
     }
 }
@@ -652,8 +682,10 @@ async function salvarEstudo() {
         if (saved) {
             estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo };
             salvarDados();
+            mostrarToast('Estudo atualizado!', 'success');
+        } else {
+            mostrarToast('Estudo atualizado localmente, mas houve falha ao sincronizar com o servidor.', 'error');
         }
-        mostrarToast('Estudo atualizado!', 'success');
     } else {
         const novoCodigo = obterProximoCodigo();
         const concluido = quantidade > 0;
@@ -678,8 +710,10 @@ async function salvarEstudo() {
                 estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo };
                 salvarDados();
             }
+            mostrarToast('Estudo adicionado!', 'success');
+        } else {
+            mostrarToast('Estudo salvo localmente, mas houve falha ao sincronizar com o servidor.', 'error');
         }
-        mostrarToast('Estudo adicionado!', 'success');
     }
     preencherFiltros();
     renderizarTabela();
@@ -691,11 +725,19 @@ async function excluirEstudo(id) {
     if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
     estudos = estudos.filter(e => e.id !== id);
     salvarDados();
-    await deletarNoServidor(id);
+    renderizarTabela();
+    atualizarDashboards();
+
+    const sucesso = await deletarNoServidor(id);
+
+    // Confirma com o servidor o estado real após a exclusão,
+    // para evitar qualquer divergência entre tela e banco de dados.
+    await carregarDoServidor(true);
     preencherFiltros();
     renderizarTabela();
     atualizarDashboards();
-    mostrarToast('Estudo excluído.', 'error');
+
+    mostrarToast(sucesso ? 'Estudo excluído.' : 'Não foi possível excluir no servidor.', sucesso ? 'error' : 'error');
 }
 
 async function toggleConcluido(id, checked) {
