@@ -20,10 +20,14 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Valida se o :id da rota é um UUID (formato usado pela coluna id no Supabase)
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function validarIdUUID(req, res, next) {
-  if (!UUID_REGEX.test(req.params.id)) {
+// Validação genérica do :id da rota. Não presumimos mais que a coluna "id"
+// do Supabase é um UUID — a tabela pode usar inteiro, texto, etc. Aqui só
+// garantimos que o valor existe e tem um tamanho razoável; se o tipo não
+// bater com o da coluna, o próprio Supabase retorna erro/0 linhas e as
+// rotas abaixo já tratam isso como 404/500.
+function validarId(req, res, next) {
+  const id = req.params.id;
+  if (!id || typeof id !== 'string' || id.trim() === '' || id.length > 200) {
     return res.status(400).json({ error: 'ID inválido' });
   }
   next();
@@ -103,7 +107,7 @@ app.post('/api/estudos', async (req, res) => {
 });
 
 // PUT /api/estudos/:id
-app.put('/api/estudos/:id', validarIdUUID, async (req, res) => {
+app.put('/api/estudos/:id', validarId, async (req, res) => {
   try {
     const { id } = req.params;
     const { curso, unidade, conteudo, data_estudo, quantidade, erros, desempenho, concluido } = req.body;
@@ -135,7 +139,7 @@ app.put('/api/estudos/:id', validarIdUUID, async (req, res) => {
 });
 
 // PATCH /api/estudos/:id
-app.patch('/api/estudos/:id', validarIdUUID, async (req, res) => {
+app.patch('/api/estudos/:id', validarId, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -158,7 +162,7 @@ app.patch('/api/estudos/:id', validarIdUUID, async (req, res) => {
 });
 
 // DELETE /api/estudos/:id
-app.delete('/api/estudos/:id', validarIdUUID, async (req, res) => {
+app.delete('/api/estudos/:id', validarId, async (req, res) => {
   try {
     const { id } = req.params;
     const { data, error } = await supabase
