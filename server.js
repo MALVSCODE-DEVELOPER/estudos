@@ -22,26 +22,15 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // ============================================
 // MIDDLEWARES
 // ============================================
-app.use(cors());
+app.use(cors({
+  origin: '*', // Em produção, restrinja à URL do seu frontend
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Accept']
+}));
 app.use(express.json());
 
 // ============================================
-// AUTENTICAÇÃO (via token)
-// ============================================
-const validToken = process.env.SESSION_TOKEN || 'dev-token-malvs';
-
-const authenticate = (req, res, next) => {
-  const token = req.headers['x-session-token'];
-  if (!token || token !== validToken) {
-    return res.status(401).json({ error: 'Não autorizado' });
-  }
-  next();
-};
-
-app.use('/api', authenticate);
-
-// ============================================
-// ROTAS DA API
+// ROTAS DA API (públicas, sem token)
 // ============================================
 
 // GET /api/estudos – listar todos
