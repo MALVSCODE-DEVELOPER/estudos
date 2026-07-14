@@ -4,7 +4,6 @@
 const API_URL = '';
 let estudos = [];
 let editandoId = null;
-let moduloAtual = 'dashboard';
 let dadosParaRevisao = null;
 
 // ============================================
@@ -50,7 +49,7 @@ function salvarDados() {
 }
 
 // ============================================
-// COMUNICAÇÃO COM O BACKEND
+// BACKEND
 // ============================================
 async function carregarDoServidor() {
   try {
@@ -89,10 +88,10 @@ async function salvarNoServidor(estudo) {
         concluido: estudo.concluido || false
       })
     });
-    if (!resp.ok) throw new Error('Erro ao salvar');
+    if (!resp.ok) throw new Error('Erro');
     return await resp.json();
   } catch (error) {
-    console.error('❌ Erro no servidor:', error);
+    console.error('❌ Erro servidor:', error);
     mostrarToast('Erro ao sincronizar com o servidor.', 'error');
     return null;
   }
@@ -128,14 +127,13 @@ function calcularDesempenho(estudo) {
 }
 
 // ============================================
-// NAVEGAÇÃO
+// NAVEGAÇÃO (sidebar)
 // ============================================
 function switchModule(modulo) {
-  moduloAtual = modulo;
   document.querySelectorAll('.module').forEach(el => el.classList.remove('active'));
   document.getElementById(`module-${modulo}`).classList.add('active');
-  document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-  document.querySelector(`.menu-item[data-modulo="${modulo}"]`).classList.add('active');
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.sidebar-item[data-modulo="${modulo}"]`).classList.add('active');
   if (modulo === 'dashboard') atualizarDashboard();
   if (modulo === 'registros') renderizarRegistros();
   if (modulo === 'revisoes') renderizarRevisoes();
@@ -147,25 +145,21 @@ function switchModule(modulo) {
 function preencherFiltrosDashboard() {
   const cursos = [...new Set(estudos.map(e => e.curso).filter(Boolean))];
   const selectCurso = document.getElementById('filtroDashboardCurso');
-  const valCurso = selectCurso.value;
   selectCurso.innerHTML = '<option value="">Todos os Cursos</option>';
   cursos.sort().forEach(c => {
     const opt = document.createElement('option');
     opt.value = c; opt.textContent = c;
     selectCurso.appendChild(opt);
   });
-  selectCurso.value = valCurso;
 
   const unidades = [...new Set(estudos.map(e => e.unidade).filter(Boolean))];
   const selectUnidade = document.getElementById('filtroDashboardUnidade');
-  const valUnidade = selectUnidade.value;
   selectUnidade.innerHTML = '<option value="">Todas as Unidades</option>';
   unidades.sort().forEach(u => {
     const opt = document.createElement('option');
     opt.value = u; opt.textContent = u;
     selectUnidade.appendChild(opt);
   });
-  selectUnidade.value = valUnidade;
 }
 
 function atualizarDashboard() {
@@ -178,15 +172,15 @@ function atualizarDashboard() {
   const melhores = [...lista].sort((a,b) => (b.desempenho || 0) - (a.desempenho || 0)).slice(0,5);
   const piores = [...lista].sort((a,b) => (a.desempenho || 0) - (b.desempenho || 0)).slice(0,5);
 
-  document.getElementById('dashboardMelhores').innerHTML = renderizarTabelaRanking(melhores, 'alto');
-  document.getElementById('dashboardPiores').innerHTML = renderizarTabelaRanking(piores, 'baixo');
+  document.getElementById('dashboardMelhores').innerHTML = renderRanking(melhores);
+  document.getElementById('dashboardPiores').innerHTML = renderRanking(piores);
 }
 
-function renderizarTabelaRanking(lista, tipo) {
-  if (!lista || lista.length === 0) return '<p style="color:var(--text-secondary);">Nenhum dado disponível.</p>';
+function renderRanking(lista) {
+  if (!lista || lista.length === 0) return '<p style="color:#6c757d;">Nenhum dado disponível.</p>';
   let html = `<table><thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th style="text-align:center;">%</th></tr></thead><tbody>`;
   lista.forEach(e => {
-    const cor = e.desempenho >= 80 ? '#22C55E' : '#EF4444';
+    const cor = e.desempenho >= 80 ? '#16A34A' : '#DC2626';
     html += `<tr><td>${e.codigo || '-'}</td><td>${e.curso || '-'}</td><td>${e.unidade || '-'}</td><td>${e.conteudo || '-'}</td><td style="text-align:center;color:${cor};font-weight:600;">${e.desempenho}%</td></tr>`;
   });
   html += '</tbody></table>';
@@ -194,18 +188,13 @@ function renderizarTabelaRanking(lista, tipo) {
 }
 
 // ============================================
-// REGISTROS (com busca e sem ações)
+// REGISTROS (com botões Editar/Excluir)
 // ============================================
 function renderizarRegistros() {
   const container = document.getElementById('registrosContainer');
   if (!container) return;
   const busca = document.getElementById('searchRegistros')?.value.toLowerCase() || '';
-
-  let lista = estudos.filter(e => {
-    if (e.concluido && e.desempenho !== null && e.desempenho < 80) return false;
-    return true;
-  });
-
+  let lista = estudos.filter(e => !(e.concluido && e.desempenho !== null && e.desempenho < 80));
   if (busca) {
     lista = lista.filter(e => 
       (e.curso && e.curso.toLowerCase().includes(busca)) ||
@@ -213,22 +202,20 @@ function renderizarRegistros() {
       (e.conteudo && e.conteudo.toLowerCase().includes(busca))
     );
   }
-
   lista.sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
 
   if (lista.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhum registro encontrado.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:2rem;color:#6c757d;">Nenhum registro encontrado.</div>';
     return;
   }
 
   let html = `<div style="overflow-x:auto;"><table>
-    <thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th>Data</th><th style="text-align:center;">Desempenho</th></tr></thead><tbody>`;
+    <thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th>Data</th><th style="text-align:center;">Desempenho</th><th style="text-align:center;">Ações</th></tr></thead><tbody>`;
   lista.forEach(e => {
-    const desempenho = e.desempenho;
     let badge = '';
-    if (desempenho === null) badge = '<span class="badge-desempenho sem-dados">-</span>';
-    else if (desempenho >= 80) badge = `<span class="badge-desempenho alto">${desempenho}%</span>`;
-    else badge = `<span class="badge-desempenho baixo">${desempenho}%</span>`;
+    if (e.desempenho === null) badge = '<span class="badge-desempenho sem-dados">-</span>';
+    else if (e.desempenho >= 80) badge = `<span class="badge-desempenho alto">${e.desempenho}%</span>`;
+    else badge = `<span class="badge-desempenho baixo">${e.desempenho}%</span>`;
     html += `<tr>
       <td>${e.codigo || '-'}</td>
       <td>${e.curso || '-'}</td>
@@ -236,14 +223,34 @@ function renderizarRegistros() {
       <td>${e.conteudo || '-'}</td>
       <td>${formatDate(e.dataEstudo)}</td>
       <td style="text-align:center;">${badge}</td>
+      <td style="text-align:center;white-space:nowrap;">
+        <button class="btn-action edit" onclick="editarEstudo('${e.id}')">Editar</button>
+        <button class="btn-action delete" onclick="excluirEstudo('${e.id}')">Excluir</button>
+      </td>
     </tr>`;
   });
   html += '</tbody></table></div>';
   container.innerHTML = html;
 }
 
+function editarEstudo(id) {
+  openModal(id, true);
+}
+
+async function excluirEstudo(id) {
+  if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
+  estudos = estudos.filter(e => e.id !== id);
+  salvarDados();
+  await deletarNoServidor(id);
+  preencherFiltrosDashboard();
+  atualizarDashboard();
+  renderizarRegistros();
+  renderizarRevisoes();
+  mostrarToast('Estudo excluído.', 'error');
+}
+
 // ============================================
-// REVISÕES (com checkbox, sem excluir)
+// REVISÕES (checkbox, sem excluir)
 // ============================================
 function renderizarRevisoes() {
   const container = document.getElementById('revisoesContainer');
@@ -252,16 +259,15 @@ function renderizarRevisoes() {
     .sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
 
   if (lista.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhuma revisão necessária.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:2rem;color:#6c757d;">Nenhuma revisão necessária.</div>';
     return;
   }
 
   let html = `<div style="overflow-x:auto;"><table>
     <thead><tr><th style="width:45px;text-align:center;">✓</th><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th>Data</th><th style="text-align:center;">Desempenho</th></tr></thead><tbody>`;
   lista.forEach(e => {
-    const desempenho = e.desempenho;
-    const badge = desempenho !== null ? `<span class="badge-desempenho baixo">${desempenho}%</span>` : '<span class="badge-desempenho sem-dados">-</span>';
-    html += `<tr data-id="${e.id}">
+    const badge = e.desempenho !== null ? `<span class="badge-desempenho baixo">${e.desempenho}%</span>` : '<span class="badge-desempenho sem-dados">-</span>';
+    html += `<tr>
       <td style="text-align:center;">
         <div class="checkbox-wrapper">
           <input type="checkbox" class="styled-checkbox" id="chk-rev-${e.id}" onchange="iniciarRevisao('${e.id}', this.checked)">
@@ -281,7 +287,7 @@ function renderizarRevisoes() {
 }
 
 // ============================================
-// REVISÃO - ABRIR MODAL
+// REVISÃO - INICIAR
 // ============================================
 function iniciarRevisao(id, checked) {
   if (!checked) return;
@@ -291,13 +297,8 @@ function iniciarRevisao(id, checked) {
   if (chk) chk.checked = false;
 
   dadosParaRevisao = estudo;
-  openModalRevisao(estudo);
-}
-
-function openModalRevisao(estudo) {
   const modal = document.getElementById('formModal');
-  const title = document.getElementById('formModalTitle');
-  title.textContent = `Revisão - ${estudo.curso} - ${estudo.conteudo || 'sem conteúdo'}`;
+  document.getElementById('formModalTitle').textContent = `Revisão - ${estudo.curso} - ${estudo.conteudo || 'sem conteúdo'}`;
   document.getElementById('f_curso').value = estudo.curso || '';
   document.getElementById('f_unidade').value = estudo.unidade || '';
   document.getElementById('f_conteudo').value = estudo.conteudo || '';
@@ -318,35 +319,29 @@ function openModalRevisao(estudo) {
 }
 
 // ============================================
-// NOVO ESTUDO - MODAL DE CONFIRMAÇÃO
+// NOVO ESTUDO
 // ============================================
 function abrirModalNovoEstudo() {
   document.getElementById('modalExercicios').style.display = 'flex';
   document.getElementById('modalExercicios').classList.add('show');
 }
-
 function fecharModalExercicios() {
   const modal = document.getElementById('modalExercicios');
   modal.style.display = 'none';
   modal.classList.remove('show');
 }
-
 function respostaExercicios(sim) {
   fecharModalExercicios();
   openModal(null, sim);
 }
 
-// ============================================
-// MODAL DE FORMULÁRIO
-// ============================================
 function openModal(id = null, comQuestoes = true) {
   editandoId = id;
   const modal = document.getElementById('formModal');
-  const title = document.getElementById('formModalTitle');
+  document.getElementById('formModalTitle').textContent = id ? 'Editar Estudo' : 'Novo Estudo';
   if (id) {
     const estudo = estudos.find(e => e.id === id);
     if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
-    title.textContent = 'Editar Estudo';
     document.getElementById('f_curso').value = estudo.curso || '';
     document.getElementById('f_unidade').value = estudo.unidade || '';
     document.getElementById('f_conteudo').value = estudo.conteudo || '';
@@ -354,7 +349,6 @@ function openModal(id = null, comQuestoes = true) {
     document.getElementById('f_quantidade').value = estudo.quantidade || 0;
     document.getElementById('f_erros').value = estudo.erros || 0;
   } else {
-    title.textContent = 'Novo Estudo';
     document.getElementById('f_curso').value = '';
     document.getElementById('f_unidade').value = '';
     document.getElementById('f_conteudo').value = '';
@@ -417,11 +411,7 @@ async function salvarEstudo() {
 
   const modal = document.getElementById('formModal');
   const semQuestoes = modal.dataset.semQuestoes === 'true';
-
-  if (semQuestoes && !editandoId) {
-    quantidade = 0;
-    erros = 0;
-  }
+  if (semQuestoes && !editandoId) { quantidade = 0; erros = 0; }
 
   const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
   const isRevisao = dadosParaRevisao !== null;
@@ -429,7 +419,7 @@ async function salvarEstudo() {
   if (isRevisao) {
     const originalQtd = parseInt(modal.dataset.originalQuantidade) || 0;
     if (quantidade <= originalQtd) {
-      mostrarToast('A quantidade de questões deve ser maior que a anterior para validar a revisão.', 'error');
+      mostrarToast('A quantidade de questões deve ser maior que a anterior.', 'error');
       return;
     }
   }
@@ -438,31 +428,17 @@ async function salvarEstudo() {
     const index = estudos.findIndex(e => e.id === editandoId);
     if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
     const antigo = estudos[index];
-    const estudoAtualizado = {
-      ...antigo,
-      curso,
-      unidade,
-      conteudo,
-      dataEstudo,
-      quantidade,
-      erros,
-      desempenho,
-      concluido: true
-    };
-    estudos[index] = estudoAtualizado;
+    const atualizado = { ...antigo, curso, unidade, conteudo, dataEstudo, quantidade, erros, desempenho, concluido: true };
+    estudos[index] = atualizado;
     salvarDados();
-    const saved = await salvarNoServidor(estudoAtualizado);
-    if (saved) {
-      estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo };
-      salvarDados();
-    }
+    const saved = await salvarNoServidor(atualizado);
+    if (saved) { estudos[index] = { ...atualizado, id: saved.id, codigo: saved.codigo }; salvarDados(); }
     mostrarToast('Estudo atualizado!', 'success');
     closeFormModal();
   } else {
     const novoCodigo = obterProximoCodigo();
-    let concluido = semQuestoes;
-    if (!semQuestoes && quantidade > 0) concluido = true;
-    const novoEstudo = {
+    let concluido = semQuestoes || (quantidade > 0);
+    const novo = {
       id: gerarId(),
       codigo: novoCodigo,
       curso,
@@ -471,22 +447,15 @@ async function salvarEstudo() {
       dataEstudo,
       quantidade,
       erros,
-      desempenho,
-      concluido: concluido || (quantidade > 0)
+      desempenho: semQuestoes ? 100 : desempenho,
+      concluido: semQuestoes ? true : concluido
     };
-    if (semQuestoes) {
-      novoEstudo.desempenho = 100;
-      novoEstudo.concluido = true;
-    }
-    estudos.push(novoEstudo);
+    estudos.push(novo);
     salvarDados();
-    const saved = await salvarNoServidor(novoEstudo);
+    const saved = await salvarNoServidor(novo);
     if (saved) {
-      const idx = estudos.findIndex(e => e.id === novoEstudo.id);
-      if (idx !== -1) {
-        estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo };
-        salvarDados();
-      }
+      const idx = estudos.findIndex(e => e.id === novo.id);
+      if (idx !== -1) { estudos[idx] = { ...novo, id: saved.id, codigo: saved.codigo }; salvarDados(); }
     }
     mostrarToast('Estudo adicionado!', 'success');
     closeFormModal();
@@ -501,9 +470,7 @@ async function salvarEstudo() {
 // ============================================
 // AUXILIARES
 // ============================================
-function gerarId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
+function gerarId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function obterProximoCodigo() {
   let max = 0;
   estudos.forEach(e => { if (e.codigo && e.codigo > max) max = e.codigo; });
@@ -512,23 +479,22 @@ function obterProximoCodigo() {
 function formatDate(d) {
   if (!d) return '-';
   const partes = d.split('-');
-  if (partes.length !== 3) return d;
-  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : d;
 }
-function mostrarToast(mensagem, tipo = 'info') {
+function mostrarToast(msg, tipo='info') {
   document.querySelectorAll('.floating-message').forEach(el => el.remove());
   const div = document.createElement('div');
   div.className = `floating-message ${tipo}`;
-  div.textContent = mensagem;
+  div.textContent = msg;
   document.body.appendChild(div);
   setTimeout(() => {
-    div.style.animation = 'slideOutBottom 0.3s ease forwards';
+    div.style.animation = 'slideOut 0.3s ease forwards';
     setTimeout(() => div.remove(), 300);
   }, 3000);
 }
 
 // ============================================
-// EXPORTAÇÃO GLOBAL
+// EXPORTAÇÕES GLOBAIS
 // ============================================
 window.switchModule = switchModule;
 window.abrirModalNovoEstudo = abrirModalNovoEstudo;
@@ -542,5 +508,5 @@ window.iniciarRevisao = iniciarRevisao;
 window.atualizarDashboard = atualizarDashboard;
 window.renderizarRegistros = renderizarRegistros;
 window.renderizarRevisoes = renderizarRevisoes;
-window.gerarId = gerarId;
-window.obterProximoCodigo = obterProximoCodigo;
+window.editarEstudo = editarEstudo;
+window.excluirEstudo = excluirEstudo;
