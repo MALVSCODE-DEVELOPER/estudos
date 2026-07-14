@@ -1,879 +1,568 @@
 // ============================================
-// CONFIGURAÇÃO – sem URL externa
+// CONFIGURAÇÃO
 // ============================================
-// O frontend e o backend estão no mesmo servidor,
-// então usamos caminhos relativos.
-const API_URL = ''; // vazio → as requisições vão para o mesmo domínio
-
-// ============================================
-// ESTADO GLOBAL
-// ============================================
+const API_URL = '';
 let estudos = [];
 let editandoId = null;
-let filtroCurso = '';
-let filtroHoje = false;
-let filtroRevisao = false;
-let filtroBusca = '';
+let moduloAtual = 'dashboard';
+let dadosParaRevisao = null; // armazena o estudo que está sendo revisado
 
 // ============================================
 // INICIALIZAÇÃO
 // ============================================
-let sincronizando = false;
-// Contador de operações de escrita em andamento (salvar, excluir, marcar/desmarcar).
-// Enquanto houver alguma operação pendente, a sincronização automática é pausada
-// para não sobrescrever uma mudança local que ainda não terminou de ser salva
-// no servidor (isso causava registros "voltando" a marcados, exclusões que
-// pareciam não funcionar, e edições que diziam "registro não encontrado").
-let escritasPendentes = 0;
-const INTERVALO_SINCRONIZACAO_MS = 5000;
-
 async function inicializarApp() {
-    const carregado = await carregarDoServidor();
-    if (!carregado) carregarDados();
-    preencherFiltros();
-    renderizarTabela();
-    atualizarDashboards();
-    window.addEventListener('beforeunload', () => salvarDados());
-    iniciarSincronizacaoAutomatica();
-}
-
-// Verifica o servidor periodicamente e atualiza a tela sozinho,
-// para refletir mudanças feitas em outras abas/dispositivos.
-function iniciarSincronizacaoAutomatica() {
-    setInterval(async () => {
-        // Evita rodar duas sincronizações ao mesmo tempo, ou enquanto
-        // o usuário está com o modal de edição aberto (para não
-        // atrapalhar o preenchimento do formulário).
-        const modalAberto = document.getElementById('formModal')?.style.display === 'flex';
-        if (sincronizando || modalAberto || escritasPendentes > 0) return;
-
-        sincronizando = true;
-        try {
-            const carregado = await carregarDoServidor(true);
-            if (carregado) {
-                preencherFiltros();
-                renderizarTabela();
-                atualizarDashboards();
-            }
-        } finally {
-            sincronizando = false;
-        }
-    }, INTERVALO_SINCRONIZACAO_MS);
+  await carregarDoServidor();
+  if (estudos.length === 0) carregarDados();
+  preencherFiltrosDashboard();
+  atualizarDashboard();
+  renderizarRegistros();
+  renderizarRevisoes();
+  window.addEventListener('beforeunload', () => salvarDados());
 }
 
 // ============================================
 // PERSISTÊNCIA LOCAL
 // ============================================
 function carregarDados() {
-    const dados = localStorage.getItem('estudosData');
-    if (dados) {
-        try {
-            estudos = JSON.parse(dados);
-            estudos = estudos.map(e => ({
-                ...e,
-                id: String(e.id),
-                quantidade: e.quantidade || 0,
-                erros: e.erros || 0,
-                concluido: e.concluido || false,
-                codigo: e.codigo || null,
-                dataEstudo: e.dataEstudo || null,
-                conteudo: e.conteudo || '',
-                desempenho: calcularDesempenho(e),
-                sincronizado: e.sincronizado !== undefined ? e.sincronizado : true
-            }));
-            let maxCod = 0;
-            estudos.forEach(e => { if (e.codigo && e.codigo > maxCod) maxCod = e.codigo; });
-            estudos.forEach(e => { if (!e.codigo) { maxCod++; e.codigo = maxCod; } });
-        } catch (e) { estudos = []; }
-    } else {
-        estudos = [];
-    }
+  const dados = localStorage.getItem('estudosData');
+  if (dados) {
+    try {
+      estudos = JSON.parse(dados);
+      estudos = estudos.map(e => ({
+        ...e,
+        quantidade: e.quantidade || 0,
+        erros: e.erros || 0,
+        concluido: e.concluido || false,
+        codigo: e.codigo || null,
+        dataEstudo: e.data_estudo || null,
+        conteudo: e.conteudo || '',
+        desempenho: calcularDesempenho(e)
+      }));
+      let maxCod = 0;
+      estudos.forEach(e => { if (e.codigo && e.codigo > maxCod) maxCod = e.codigo; });
+      estudos.forEach(e => { if (!e.codigo) { maxCod++; e.codigo = maxCod; } });
+    } catch { estudos = []; }
+  } else { estudos = []; }
 }
 
 function salvarDados() {
-    localStorage.setItem('estudosData', JSON.stringify(estudos));
-}
-
-function exportarDados() {
-    const dataStr = JSON.stringify(estudos, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_malvsstudy_${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    mostrarToast('Backup baixado com sucesso!', 'success');
-}
-
-function importarDados(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const dados = JSON.parse(e.target.result);
-            if (Array.isArray(dados)) {
-                estudos = dados.map(estudo => ({ ...estudo, id: String(estudo.id), conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo), sincronizado: false }));
-                let maxCod = 0;
-                estudos.forEach(est => { if (est.codigo && est.codigo > maxCod) maxCod = est.codigo; });
-                estudos.forEach(est => { if (!est.codigo) { maxCod++; est.codigo = maxCod; } });
-                salvarDados();
-                await sincronizarTodosComServidor();
-                preencherFiltros();
-                renderizarTabela();
-                atualizarDashboards();
-                mostrarToast('Dados importados com sucesso!', 'success');
-            } else {
-                mostrarToast('Arquivo inválido.', 'error');
-            }
-        } catch (err) {
-            mostrarToast('Erro ao ler o arquivo.', 'error');
-        }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
+  localStorage.setItem('estudosData', JSON.stringify(estudos));
 }
 
 // ============================================
-// COMUNICAÇÃO COM O BACKEND (caminhos relativos)
+// COMUNICAÇÃO COM O BACKEND
 // ============================================
-async function carregarDoServidor(silencioso = false) {
-    try {
-        const response = await fetch('/api/estudos', {
-            headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) throw new Error('Erro ao carregar');
-        const data = await response.json();
-        if (data && Array.isArray(data)) {
-            estudos = data.map(e => ({
-                ...e,
-                id: String(e.id), // a coluna id é bigserial (número); padronizamos
-                                   // como string porque o HTML sempre embute o id
-                                   // como texto em onclick/data-id, e comparações
-                                   // com === entre número e string sempre falham.
-                dataEstudo: e.data_estudo || null,
-                conteudo: e.conteudo || '',
-                desempenho: calcularDesempenho(e),
-                sincronizado: true // veio do servidor: existe de fato no banco
-            }));
-            salvarDados();
-            return true;
-        }
-        return false;
-    } catch (error) {
-        if (!silencioso) {
-            console.warn('⚠️ Não foi possível carregar do servidor, usando fallback local.', error);
-        }
-        return false;
+async function carregarDoServidor() {
+  try {
+    const resp = await fetch('/api/estudos', { headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) throw new Error('Erro');
+    const data = await resp.json();
+    if (data && Array.isArray(data)) {
+      estudos = data.map(e => ({
+        ...e,
+        dataEstudo: e.data_estudo || null,
+        conteudo: e.conteudo || '',
+        desempenho: calcularDesempenho(e)
+      }));
+      salvarDados();
+      return true;
     }
+    return false;
+  } catch { return false; }
 }
 
 async function salvarNoServidor(estudo) {
-    try {
-        // Usa a flag explícita "sincronizado" (marcada quando o servidor
-        // já confirmou a existência do registro) em vez de tentar adivinhar
-        // pelo formato do id — a tabela pode usar UUID, inteiro ou outro tipo.
-        const temIdValido = !!estudo.sincronizado;
-        const method = temIdValido ? 'PUT' : 'POST';
-        const url = temIdValido ? `/api/estudos/${estudo.id}` : '/api/estudos';
-        const response = await fetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                curso: estudo.curso,
-                unidade: estudo.unidade || '',
-                conteudo: estudo.conteudo || '',
-                data_estudo: estudo.dataEstudo || null,
-                quantidade: estudo.quantidade || 0,
-                erros: estudo.erros || 0,
-                desempenho: estudo.desempenho !== undefined ? estudo.desempenho : null,
-                concluido: estudo.concluido || false
-            })
-        });
-        if (!response.ok) throw new Error('Erro ao salvar');
-        const salvo = await response.json();
-        return { ...salvo, id: String(salvo.id), sincronizado: true };
-    } catch (error) {
-        console.error('❌ Erro ao salvar no servidor:', error);
-        mostrarToast('Erro ao sincronizar com o servidor. Dados salvos localmente.', 'error');
-        return null;
-    }
+  try {
+    const method = estudo.id ? 'PUT' : 'POST';
+    const url = estudo.id ? `/api/estudos/${estudo.id}` : '/api/estudos';
+    const resp = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        curso: estudo.curso,
+        unidade: estudo.unidade || '',
+        conteudo: estudo.conteudo || '',
+        data_estudo: estudo.dataEstudo || null,
+        quantidade: estudo.quantidade || 0,
+        erros: estudo.erros || 0,
+        desempenho: estudo.desempenho !== undefined ? estudo.desempenho : null,
+        concluido: estudo.concluido || false
+      })
+    });
+    if (!resp.ok) throw new Error('Erro ao salvar');
+    return await resp.json();
+  } catch (error) {
+    console.error('❌ Erro no servidor:', error);
+    mostrarToast('Erro ao sincronizar com o servidor.', 'error');
+    return null;
+  }
 }
 
-async function deletarNoServidor(estudo) {
-    // Se o registro ainda não foi confirmado pelo servidor, ele só existe
-    // localmente — não há o que excluir no banco de dados.
-    if (!estudo.sincronizado) {
-        console.log('[deletarNoServidor] registro ainda não sincronizado, pulando chamada ao servidor:', estudo.id);
-        return true;
-    }
-    try {
-        console.log('[deletarNoServidor] enviando DELETE para /api/estudos/' + estudo.id);
-        const response = await fetch(`/api/estudos/${estudo.id}`, { method: 'DELETE' });
-        console.log('[deletarNoServidor] status HTTP recebido:', response.status);
-        const corpo = await response.clone().json().catch(() => null);
-        console.log('[deletarNoServidor] corpo da resposta:', corpo);
-        if (!response.ok) throw new Error('Erro ao deletar: ' + response.status);
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao deletar no servidor:', error);
-        return false;
-    }
+async function deletarNoServidor(id) {
+  try {
+    await fetch(`/api/estudos/${id}`, { method: 'DELETE' });
+    return true;
+  } catch { return false; }
 }
 
-async function atualizarStatusNoServidor(estudo, concluido) {
-    // Registro ainda não confirmado pelo servidor: não existe no banco.
-    if (!estudo.sincronizado) return null;
-    try {
-        const response = await fetch(`/api/estudos/${estudo.id}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ concluido })
-        });
-        if (!response.ok) throw new Error('Erro ao atualizar status');
-        const salvo = await response.json();
-        return { ...salvo, id: String(salvo.id), sincronizado: true };
-    } catch (error) {
-        console.error('❌ Erro ao atualizar status no servidor:', error);
-        mostrarToast('Erro ao sincronizar status com o servidor.', 'error');
-        return null;
-    }
-}
-
-async function sincronizarTodosComServidor() {
-    for (const estudo of estudos) {
-        await salvarNoServidor(estudo);
-    }
-    // Recarrega do servidor para obter os ids reais atribuídos a cada
-    // registro recém-criado (senão eles ficariam marcados como não
-    // sincronizados para sempre, e cada edição futura criaria um duplicado).
-    await carregarDoServidor(true);
-    mostrarToast('Dados sincronizados com o servidor!', 'success');
+async function atualizarStatusNoServidor(id, data) {
+  try {
+    const resp = await fetch(`/api/estudos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!resp.ok) throw new Error('Erro');
+    return await resp.json();
+  } catch { return null; }
 }
 
 // ============================================
 // CÁLCULO DE DESEMPENHO
 // ============================================
 function calcularDesempenho(estudo) {
-    const q = parseInt(estudo.quantidade) || 0;
-    const e = parseInt(estudo.erros) || 0;
-    if (q === 0) return null;
-    return Math.round(((q - e) / q) * 100);
+  const q = parseInt(estudo.quantidade) || 0;
+  const e = parseInt(estudo.erros) || 0;
+  if (q === 0) return null;
+  return Math.round(((q - e) / q) * 100);
 }
 
 // ============================================
-// FILTROS E RENDERIZAÇÃO DA TABELA
+// NAVEGAÇÃO ENTRE MÓDULOS
 // ============================================
-function preencherFiltros() {
-    const cursos = [...new Set(estudos.map(e => e.curso).filter(Boolean))];
-    const selectCurso = document.getElementById('filterCurso');
-    const valorAtual = selectCurso.value;
-    selectCurso.innerHTML = '<option value="">Todos os Cursos</option>';
-    cursos.sort().forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        selectCurso.appendChild(opt);
-    });
-    selectCurso.value = valorAtual;
-
-    const selectCursoDesempenho = document.getElementById('filtroDesempenhoCurso');
-    if (selectCursoDesempenho) {
-        const valAtual = selectCursoDesempenho.value;
-        selectCursoDesempenho.innerHTML = '<option value="">Todos os Cursos</option>';
-        cursos.sort().forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
-            selectCursoDesempenho.appendChild(opt);
-        });
-        selectCursoDesempenho.value = valAtual;
-    }
-    const unidades = [...new Set(estudos.map(e => e.unidade).filter(Boolean))];
-    const selectUnidadeDesempenho = document.getElementById('filtroDesempenhoUnidade');
-    if (selectUnidadeDesempenho) {
-        const valAtual = selectUnidadeDesempenho.value;
-        selectUnidadeDesempenho.innerHTML = '<option value="">Todas as Unidades</option>';
-        unidades.sort().forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = u;
-            opt.textContent = u;
-            selectUnidadeDesempenho.appendChild(opt);
-        });
-        selectUnidadeDesempenho.value = valAtual;
-    }
-}
-
-function applyFilters() {
-    filtroBusca = document.getElementById('searchInput').value.toLowerCase();
-    filtroCurso = document.getElementById('filterCurso').value;
-    renderizarTabela();
-}
-
-function toggleTodayFilter() {
-    filtroHoje = !filtroHoje;
-    document.getElementById('btnCalendar').classList.toggle('active', filtroHoje);
-    renderizarTabela();
-}
-
-function toggleRevisaoFilter() {
-    filtroRevisao = !filtroRevisao;
-    document.getElementById('btnRevisao').classList.toggle('active', filtroRevisao);
-    renderizarTabela();
-}
-
-function getEstudosFiltrados() {
-    let lista = [...estudos];
-    if (filtroBusca) {
-        lista = lista.filter(e => 
-            (e.unidade && e.unidade.toLowerCase().includes(filtroBusca)) ||
-            (e.conteudo && e.conteudo.toLowerCase().includes(filtroBusca))
-        );
-    }
-    if (filtroCurso) {
-        lista = lista.filter(e => e.curso === filtroCurso);
-    }
-    if (filtroHoje) {
-        const hoje = new Date().toISOString().slice(0,10);
-        lista = lista.filter(e => e.dataEstudo === hoje);
-    }
-    if (filtroRevisao) {
-        lista = lista.filter(e => {
-            const d = calcularDesempenho(e);
-            return d !== null && d < 80 && !e.concluido;
-        });
-    }
-    lista.sort((a, b) => (a.codigo || 0) - (b.codigo || 0));
-    return lista;
-}
-
-function renderizarTabela() {
-    const container = document.getElementById('registrosContainer');
-    if (!container) return;
-    const lista = getEstudosFiltrados();
-    if (lista.length === 0) {
-        container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhum estudo encontrado.</div>';
-        return;
-    }
-    let html = `<div style="overflow-x:auto;"><table>
-        <thead><tr>
-            <th style="text-align:center;">✓</th>
-            <th style="text-align:center;">Cód.</th>
-            <th>Curso</th>
-            <th>Unidade</th>
-            <th>Conteúdo</th>
-            <th>Data</th>
-            <th style="text-align:center;"></th>
-            <th style="text-align:center;"></th>
-            <th style="text-align:center;"></th>
-        </tr></thead><tbody>`;
-    lista.forEach(e => {
-        const concluido = e.concluido || false;
-        const desempenho = calcularDesempenho(e);
-        const precisaRevisao = (desempenho !== null && desempenho < 80 && !concluido);
-        const rowClass = concluido ? 'row-concluido' : '';
-        let badgeHtml = '';
-        if (desempenho === null) {
-            badgeHtml = '<span class="badge badge-desempenho sem-dados">-</span>';
-        } else if (desempenho >= 80) {
-            badgeHtml = `<span class="badge badge-desempenho alto">${desempenho}%</span>`;
-        } else {
-            badgeHtml = `<span class="badge badge-desempenho baixo">${desempenho}%</span>`;
-        }
-        const alertIcon = precisaRevisao ? `
-            <button class="action-btn alert-icon" onclick="event.stopPropagation();abrirEdicaoQuestoes('${e.id}')" title="Precisa de revisão (desempenho < 80%)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-            </button>` : '';
-
-        // Só bloqueia marcar como concluído sem questões cadastradas (quantidade 0).
-        // Se já estiver concluído, o usuário SEMPRE pode desmarcar livremente.
-        const checkboxDisabled = (e.quantidade === 0 && !concluido) ? 'disabled' : '';
-
-        html += `<tr class="${rowClass} row-clickable" data-id="${e.id}" onclick="handleRowClick(event, '${e.id}')">
-            <td style="text-align:center;">
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" class="styled-checkbox" id="chk-${e.id}" ${concluido ? 'checked' : ''} 
-                           onchange="toggleConcluido('${e.id}', this.checked)" 
-                           onclick="event.stopPropagation()"
-                           ${checkboxDisabled}>
-                    <label for="chk-${e.id}" class="checkbox-label-styled" onclick="event.stopPropagation()"></label>
-                </div>
-            </td>
-            <td style="text-align:center;font-weight:600;">${e.codigo || '-'}</td>
-            <td><strong>${e.curso || '-'}</strong></td>
-            <td>${e.unidade || '-'}</td>
-            <td style="max-width:200px;word-wrap:break-word;white-space:normal;">${e.conteudo || '-'}</td>
-            <td style="white-space:nowrap;">${formatDate(e.dataEstudo)}</td>
-            <td style="text-align:center;">${badgeHtml}</td>
-            <td style="text-align:center;">${alertIcon}</td>
-            <td class="actions-cell" style="text-align:center;white-space:nowrap;">
-                <button class="action-btn delete" onclick="event.stopPropagation();excluirEstudo('${e.id}')" title="Excluir">Excluir</button>
-            </td>
-        </tr>`;
-    });
-    html += `</tbody></table></div>`;
-    container.innerHTML = html;
+function switchModule(modulo) {
+  moduloAtual = modulo;
+  document.querySelectorAll('.module').forEach(el => el.classList.remove('active'));
+  document.getElementById(`module-${modulo}`).classList.add('active');
+  document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.menu-item[data-modulo="${modulo}"]`).classList.add('active');
+  if (modulo === 'dashboard') atualizarDashboard();
+  if (modulo === 'registros') renderizarRegistros();
+  if (modulo === 'revisoes') renderizarRevisoes();
 }
 
 // ============================================
-// DASHBOARDS
+// DASHBOARD
 // ============================================
-function atualizarDashboards() {
-    const hoje = new Date().toISOString().slice(0,10);
-    const naoConcluidos = estudos.filter(e => e.dataEstudo && e.dataEstudo < hoje && !e.concluido).length;
-    document.getElementById('statNaoConcluidos').textContent = naoConcluidos;
+function preencherFiltrosDashboard() {
+  const cursos = [...new Set(estudos.map(e => e.curso).filter(Boolean))];
+  const selectCurso = document.getElementById('filtroDashboardCurso');
+  const valCurso = selectCurso.value;
+  selectCurso.innerHTML = '<option value="">Todos os Cursos</option>';
+  cursos.sort().forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    selectCurso.appendChild(opt);
+  });
+  selectCurso.value = valCurso;
 
-    const revisoes = estudos.filter(e => {
-        const d = calcularDesempenho(e);
-        return d !== null && d < 80 && !e.concluido;
-    }).length;
-    document.getElementById('statRevisoes').textContent = revisoes;
-
-    const totalQuestoes = estudos.reduce((acc, e) => acc + (parseInt(e.quantidade) || 0), 0);
-    document.getElementById('statQuestoes').textContent = totalQuestoes;
-
-    const desempenhos = estudos.map(e => calcularDesempenho(e)).filter(d => d !== null);
-    const media = desempenhos.length ? Math.round(desempenhos.reduce((a,b) => a+b, 0) / desempenhos.length) : 0;
-    document.getElementById('statDesempenho').textContent = media + '%';
+  const unidades = [...new Set(estudos.map(e => e.unidade).filter(Boolean))];
+  const selectUnidade = document.getElementById('filtroDashboardUnidade');
+  const valUnidade = selectUnidade.value;
+  selectUnidade.innerHTML = '<option value="">Todas as Unidades</option>';
+  unidades.sort().forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u; opt.textContent = u;
+    selectUnidade.appendChild(opt);
+  });
+  selectUnidade.value = valUnidade;
 }
 
-// ============================================
-// MODAL DE QUESTÕES
-// ============================================
-let paginaQuestoes = 1;
-let dadosQuestoes = [];
+function atualizarDashboard() {
+  const curso = document.getElementById('filtroDashboardCurso').value;
+  const unidade = document.getElementById('filtroDashboardUnidade').value;
+  let lista = estudos.filter(e => e.desempenho !== null);
+  if (curso) lista = lista.filter(e => e.curso === curso);
+  if (unidade) lista = lista.filter(e => e.unidade === unidade);
 
-function abrirModalQuestoes(id = null) {
-    const modal = document.getElementById('modalQuestoes');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    modal.classList.add('show');
-    let lista = estudos.filter(e => (e.quantidade || 0) > 0);
-    lista.sort((a, b) => (a.quantidade || 0) - (b.quantidade || 0));
-    renderPaginaModalQuestoes(lista, 1);
+  // Melhores (5 maiores desempenhos)
+  const melhores = [...lista].sort((a,b) => (b.desempenho || 0) - (a.desempenho || 0)).slice(0,5);
+  // Piores (5 menores)
+  const piores = [...lista].sort((a,b) => (a.desempenho || 0) - (b.desempenho || 0)).slice(0,5);
+
+  document.getElementById('dashboardMelhores').innerHTML = renderizarTabelaRanking(melhores, 'alto');
+  document.getElementById('dashboardPiores').innerHTML = renderizarTabelaRanking(piores, 'baixo');
 }
 
-function renderPaginaModalQuestoes(lista, pagina) {
-    dadosQuestoes = lista;
-    paginaQuestoes = pagina;
-    const container = document.getElementById('conteudoModalQuestoes');
-    if (!container) return;
-    const porPagina = 5;
-    const total = lista.length;
-    const totalPaginas = Math.ceil(total / porPagina);
-    const inicio = (pagina - 1) * porPagina;
-    const fim = Math.min(inicio + porPagina, total);
-    const paginaAtual = lista.slice(inicio, fim);
-
-    if (paginaAtual.length === 0) {
-        container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);">Nenhum dado disponível.</p>';
-        return;
-    }
-
-    let html = `<div style="overflow-x:auto;"><table>
-        <thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th style="text-align:center;">Questões</th></tr></thead><tbody>`;
-    paginaAtual.forEach(e => {
-        html += `<tr><td>${e.codigo || '-'}</td><td>${e.curso || '-'}</td><td>${e.unidade || '-'}</td><td>${e.conteudo || '-'}</td><td style="text-align:center;">${e.quantidade || 0}</td></tr>`;
-    });
-    html += `</tbody></table></div>`;
-
-    if (totalPaginas > 1) {
-        html += `<div class="paginacao">
-            <button onclick="mudarPaginaQuestoes(-1)" ${pagina <= 1 ? 'disabled' : ''}>‹</button>
-            <span>${pagina} / ${totalPaginas}</span>
-            <button onclick="mudarPaginaQuestoes(1)" ${pagina >= totalPaginas ? 'disabled' : ''}>›</button>
-        </div>`;
-    }
-    container.innerHTML = html;
-}
-
-function mudarPaginaQuestoes(delta) {
-    const nova = paginaQuestoes + delta;
-    const total = Math.ceil(dadosQuestoes.length / 5);
-    if (nova < 1 || nova > total) return;
-    renderPaginaModalQuestoes(dadosQuestoes, nova);
-}
-
-function fecharModalQuestoes() {
-    const modal = document.getElementById('modalQuestoes');
-    modal.style.display = 'none';
-    modal.classList.remove('show');
+function renderizarTabelaRanking(lista, tipo) {
+  if (!lista || lista.length === 0) return '<p style="color:var(--text-secondary);">Nenhum dado disponível.</p>';
+  let html = `<table><thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th style="text-align:center;">%</th></tr></thead><tbody>`;
+  lista.forEach(e => {
+    const cor = e.desempenho >= 80 ? '#22C55E' : '#EF4444';
+    html += `<tr><td>${e.codigo || '-'}</td><td>${e.curso || '-'}</td><td>${e.unidade || '-'}</td><td>${e.conteudo || '-'}</td><td style="text-align:center;color:${cor};font-weight:600;">${e.desempenho}%</td></tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
 // ============================================
-// MODAL DE DESEMPENHO
+// REGISTROS (sem checkbox, sem filtros)
 // ============================================
-let paginaDesempenho = 1;
-let dadosDesempenho = [];
+function renderizarRegistros() {
+  const container = document.getElementById('registrosContainer');
+  if (!container) return;
+  // Mostra apenas os que NÃO estão em revisão (concluido true e desempenho >=80) ou pendentes (concluido false)
+  const lista = estudos.filter(e => {
+    if (e.concluido && e.desempenho !== null && e.desempenho < 80) return false; // está em revisão
+    return true;
+  }).sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
 
-function abrirModalDesempenho() {
-    const modal = document.getElementById('modalDesempenho');
-    if (!modal) return;
-    preencherFiltros();
-    modal.style.display = 'flex';
-    modal.classList.add('show');
-    aplicarFiltrosDesempenho();
-}
+  if (lista.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhum registro encontrado.</div>';
+    return;
+  }
 
-function aplicarFiltrosDesempenho() {
-    const cursoFiltro = document.getElementById('filtroDesempenhoCurso').value;
-    const unidadeFiltro = document.getElementById('filtroDesempenhoUnidade').value;
-    let lista = estudos.filter(e => {
-        const d = calcularDesempenho(e);
-        return d !== null;
-    });
-    if (cursoFiltro) lista = lista.filter(e => e.curso === cursoFiltro);
-    if (unidadeFiltro) lista = lista.filter(e => e.unidade === unidadeFiltro);
-    lista.sort((a, b) => (calcularDesempenho(a) || 0) - (calcularDesempenho(b) || 0));
-    dadosDesempenho = lista;
-    paginaDesempenho = 1;
-    renderPaginaModalDesempenho(lista, 1);
-}
-
-function renderPaginaModalDesempenho(lista, pagina) {
-    const container = document.getElementById('conteudoModalDesempenho');
-    if (!container) return;
-    const porPagina = 5;
-    const total = lista.length;
-    const totalPaginas = Math.ceil(total / porPagina);
-    const inicio = (pagina - 1) * porPagina;
-    const fim = Math.min(inicio + porPagina, total);
-    const paginaAtual = lista.slice(inicio, fim);
-
-    if (paginaAtual.length === 0) {
-        container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);">Nenhum dado disponível.</p>';
-        return;
-    }
-
-    let html = `<div style="overflow-x:auto;"><table>
-        <thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th style="text-align:center;">%</th></tr></thead><tbody>`;
-    paginaAtual.forEach(e => {
-        const d = calcularDesempenho(e);
-        const cor = d >= 80 ? '#22C55E' : '#EF4444';
-        html += `<tr><td>${e.codigo || '-'}</td><td>${e.curso || '-'}</td><td>${e.unidade || '-'}</td><td>${e.conteudo || '-'}</td><td style="text-align:center;color:${cor};font-weight:600;">${d}%</td></tr>`;
-    });
-    html += `</tbody></table></div>`;
-
-    if (totalPaginas > 1) {
-        html += `<div class="paginacao">
-            <button onclick="mudarPaginaDesempenho(-1)" ${pagina <= 1 ? 'disabled' : ''}>‹</button>
-            <span>${pagina} / ${totalPaginas}</span>
-            <button onclick="mudarPaginaDesempenho(1)" ${pagina >= totalPaginas ? 'disabled' : ''}>›</button>
-        </div>`;
-    }
-    container.innerHTML = html;
-}
-
-function mudarPaginaDesempenho(delta) {
-    const nova = paginaDesempenho + delta;
-    const total = Math.ceil(dadosDesempenho.length / 5);
-    if (nova < 1 || nova > total) return;
-    renderPaginaModalDesempenho(dadosDesempenho, nova);
-}
-
-function fecharModalDesempenho() {
-    const modal = document.getElementById('modalDesempenho');
-    modal.style.display = 'none';
-    modal.classList.remove('show');
+  let html = `<div style="overflow-x:auto;"><table>
+    <thead><tr><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th>Data</th><th style="text-align:center;">Desempenho</th></tr></thead><tbody>`;
+  lista.forEach(e => {
+    const desempenho = e.desempenho;
+    let badge = '';
+    if (desempenho === null) badge = '<span class="badge-desempenho sem-dados">-</span>';
+    else if (desempenho >= 80) badge = `<span class="badge-desempenho alto">${desempenho}%</span>`;
+    else badge = `<span class="badge-desempenho baixo">${desempenho}%</span>`;
+    html += `<tr>
+      <td>${e.codigo || '-'}</td>
+      <td>${e.curso || '-'}</td>
+      <td>${e.unidade || '-'}</td>
+      <td>${e.conteudo || '-'}</td>
+      <td>${formatDate(e.dataEstudo)}</td>
+      <td style="text-align:center;">${badge}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
 }
 
 // ============================================
-// FORMATAÇÃO DE DATA
+// REVISÕES (com checkbox e sem botão excluir)
 // ============================================
-function formatDate(d) {
-    if (!d) return '-';
-    const partes = d.split('-');
-    if (partes.length !== 3) return d;
-    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+function renderizarRevisoes() {
+  const container = document.getElementById('revisoesContainer');
+  if (!container) return;
+  // Mostra apenas os que precisam revisão: concluido = true e desempenho < 80
+  const lista = estudos.filter(e => e.concluido && e.desempenho !== null && e.desempenho < 80)
+    .sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
+
+  if (lista.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhuma revisão necessária.</div>';
+    return;
+  }
+
+  let html = `<div style="overflow-x:auto;"><table>
+    <thead><tr><th style="width:45px;text-align:center;">✓</th><th>Cód.</th><th>Curso</th><th>Unidade</th><th>Conteúdo</th><th>Data</th><th style="text-align:center;">Desempenho</th></tr></thead><tbody>`;
+  lista.forEach(e => {
+    const desempenho = e.desempenho;
+    const badge = desempenho !== null ? `<span class="badge-desempenho baixo">${desempenho}%</span>` : '<span class="badge-desempenho sem-dados">-</span>';
+    html += `<tr data-id="${e.id}">
+      <td style="text-align:center;">
+        <div class="checkbox-wrapper">
+          <input type="checkbox" class="styled-checkbox" id="chk-rev-${e.id}" onchange="iniciarRevisao('${e.id}', this.checked)">
+          <label for="chk-rev-${e.id}" class="checkbox-label-styled"></label>
+        </div>
+      </td>
+      <td>${e.codigo || '-'}</td>
+      <td>${e.curso || '-'}</td>
+      <td>${e.unidade || '-'}</td>
+      <td>${e.conteudo || '-'}</td>
+      <td>${formatDate(e.dataEstudo)}</td>
+      <td style="text-align:center;">${badge}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
 }
 
 // ============================================
-// MANIPULAÇÃO DE ESTUDOS (CRUD)
+// REVISÃO - ABRIR MODAL DE QUESTÕES
 // ============================================
-function gerarId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function iniciarRevisao(id, checked) {
+  if (!checked) return; // só trata quando marcar
+  const estudo = estudos.find(e => e.id === id);
+  if (!estudo) return;
+  // Desmarcar checkbox (será marcado após salvar se for bem-sucedido)
+  const chk = document.getElementById(`chk-rev-${id}`);
+  if (chk) chk.checked = false;
+
+  // Abrir modal de revisão (apenas aba Questões)
+  dadosParaRevisao = estudo;
+  openModalRevisao(estudo);
 }
 
-function obterProximoCodigo() {
-    let max = 0;
-    estudos.forEach(e => { if (e.codigo && e.codigo > max) max = e.codigo; });
-    return max + 1;
+function openModalRevisao(estudo) {
+  const modal = document.getElementById('formModal');
+  const title = document.getElementById('formModalTitle');
+  title.textContent = `Revisão - ${estudo.curso} - ${estudo.conteudo || 'sem conteúdo'}`;
+  // Preencher campos com dados atuais
+  document.getElementById('f_curso').value = estudo.curso || '';
+  document.getElementById('f_unidade').value = estudo.unidade || '';
+  document.getElementById('f_conteudo').value = estudo.conteudo || '';
+  document.getElementById('f_dataEstudo').value = estudo.dataEstudo || '';
+  document.getElementById('f_quantidade').value = estudo.quantidade || 0;
+  document.getElementById('f_erros').value = estudo.erros || 0;
+
+  // Esconder a aba Geral e mostrar apenas Questões
+  document.querySelectorAll('.tab-btn').forEach(b => b.style.display = 'none');
+  document.getElementById('tabBtnQuestoes').style.display = 'inline-block';
+  document.getElementById('tabBtnQuestoes').click();
+  // Esconder a aba Geral
+  document.getElementById('tabGeral').classList.remove('active');
+  document.getElementById('tabQuestoes').classList.add('active');
+
+  editandoId = estudo.id; // para atualizar
+  modal.style.display = 'flex';
+  modal.classList.add('show');
+  // Armazenar o estudo original para comparar quantidades depois
+  modal.dataset.originalQuantidade = estudo.quantidade || 0;
 }
 
-// Abre o formulário de edição diretamente na aba "Questões" (usado pelo ícone
-// de alerta de revisão). Tem nome diferente de abrirModalQuestoes() de propósito:
-// antes as duas funções tinham o mesmo nome e a segunda declaração sobrescrevia
-// a primeira, fazendo o card "Questões" do dashboard abrir o formulário de
-// edição em vez do modal de listagem de questões.
-function abrirEdicaoQuestoes(id) {
-    openModal(id, 'tabQuestoes');
+// ============================================
+// NOVO ESTUDO - MODAL DE CONFIRMAÇÃO
+// ============================================
+let respostaExerciciosPendente = false;
+let dadosNovoEstudo = null;
+
+function abrirModalNovoEstudo() {
+  document.getElementById('modalExercicios').style.display = 'flex';
+  document.getElementById('modalExercicios').classList.add('show');
 }
 
-function openModal(id = null, tab = 'tabGeral') {
-    editandoId = id;
-    const modal = document.getElementById('formModal');
-    const title = document.getElementById('formModalTitle');
-    if (id) {
-        const estudo = estudos.find(e => e.id === id);
-        if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
-        title.textContent = 'Editar Estudo';
-        document.getElementById('f_curso').value = estudo.curso || '';
-        document.getElementById('f_unidade').value = estudo.unidade || '';
-        document.getElementById('f_conteudo').value = estudo.conteudo || '';
-        document.getElementById('f_dataEstudo').value = estudo.dataEstudo || '';
-        document.getElementById('f_quantidade').value = estudo.quantidade || 0;
-        document.getElementById('f_erros').value = estudo.erros || 0;
-    } else {
-        title.textContent = 'Novo Estudo';
-        document.getElementById('f_curso').value = '';
-        document.getElementById('f_unidade').value = '';
-        document.getElementById('f_conteudo').value = '';
-        document.getElementById('f_dataEstudo').value = '';
-        document.getElementById('f_quantidade').value = 0;
-        document.getElementById('f_erros').value = 0;
-    }
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    const tabEl = document.getElementById(tab);
-    if (tabEl) tabEl.classList.add('active');
-    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
-    if (btn) btn.classList.add('active');
-    modal.style.display = 'flex';
-    modal.classList.add('show');
+function fecharModalExercicios() {
+  const modal = document.getElementById('modalExercicios');
+  modal.style.display = 'none';
+  modal.classList.remove('show');
+}
+
+function respostaExercicios(sim) {
+  fecharModalExercicios();
+  if (sim) {
+    // Abrir modal com ambas as abas
+    openModal(null, true);
+  } else {
+    // Abrir modal apenas com a aba Geral, e ao salvar, definirá concluido=true, desempenho=100%
+    openModal(null, false);
+  }
+}
+
+// ============================================
+// MODAL DE FORMULÁRIO (GERAL/QUESTÕES)
+// ============================================
+function openModal(id = null, comQuestoes = true) {
+  editandoId = id;
+  const modal = document.getElementById('formModal');
+  const title = document.getElementById('formModalTitle');
+  if (id) {
+    const estudo = estudos.find(e => e.id === id);
+    if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
+    title.textContent = 'Editar Estudo';
+    document.getElementById('f_curso').value = estudo.curso || '';
+    document.getElementById('f_unidade').value = estudo.unidade || '';
+    document.getElementById('f_conteudo').value = estudo.conteudo || '';
+    document.getElementById('f_dataEstudo').value = estudo.dataEstudo || '';
+    document.getElementById('f_quantidade').value = estudo.quantidade || 0;
+    document.getElementById('f_erros').value = estudo.erros || 0;
+  } else {
+    title.textContent = 'Novo Estudo';
+    document.getElementById('f_curso').value = '';
+    document.getElementById('f_unidade').value = '';
+    document.getElementById('f_conteudo').value = '';
+    document.getElementById('f_dataEstudo').value = '';
+    document.getElementById('f_quantidade').value = 0;
+    document.getElementById('f_erros').value = 0;
+  }
+
+  // Controlar visibilidade das abas
+  const tabQuestoes = document.getElementById('tabBtnQuestoes');
+  if (comQuestoes) {
+    tabQuestoes.style.display = 'inline-block';
+    // Ativar aba Geral por padrão
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="tabGeral"]').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tabGeral').classList.add('active');
+  } else {
+    tabQuestoes.style.display = 'none';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="tabGeral"]').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tabGeral').classList.add('active');
+  }
+
+  modal.style.display = 'flex';
+  modal.classList.add('show');
+  // Sinalizar se veio sem questões
+  modal.dataset.semQuestoes = (!comQuestoes).toString();
 }
 
 function closeFormModal() {
-    const modal = document.getElementById('formModal');
-    modal.style.display = 'none';
-    modal.classList.remove('show');
-    editandoId = null;
+  const modal = document.getElementById('formModal');
+  modal.style.display = 'none';
+  modal.classList.remove('show');
+  editandoId = null;
+  dadosParaRevisao = null;
+  document.querySelectorAll('.tab-btn').forEach(b => b.style.display = 'inline-block'); // restaurar abas
 }
 
 function switchFormTab(tabId, btn) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById(tabId).classList.add('active');
-    btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  btn.classList.add('active');
 }
 
+// ============================================
+// SALVAR ESTUDO (CRIAR OU ATUALIZAR)
+// ============================================
 async function salvarEstudo() {
-    const curso = document.getElementById('f_curso').value.trim();
-    const unidade = document.getElementById('f_unidade').value.trim();
-    const conteudo = document.getElementById('f_conteudo').value.trim();
-    const dataEstudo = document.getElementById('f_dataEstudo').value || null;
-    const quantidade = parseInt(document.getElementById('f_quantidade').value) || 0;
-    const erros = parseInt(document.getElementById('f_erros').value) || 0;
+  const curso = document.getElementById('f_curso').value.trim();
+  const unidade = document.getElementById('f_unidade').value.trim();
+  const conteudo = document.getElementById('f_conteudo').value.trim();
+  const dataEstudo = document.getElementById('f_dataEstudo').value || null;
+  let quantidade = parseInt(document.getElementById('f_quantidade').value) || 0;
+  let erros = parseInt(document.getElementById('f_erros').value) || 0;
 
-    if (!curso) {
-        mostrarToast('O campo Curso é obrigatório.', 'error');
-        return;
+  if (!curso) {
+    mostrarToast('O campo Curso é obrigatório.', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('formModal');
+  const semQuestoes = modal.dataset.semQuestoes === 'true';
+
+  // Se for novo estudo sem questões, forçar desempenho 100% e concluido
+  if (semQuestoes && !editandoId) {
+    quantidade = 0;
+    erros = 0;
+  }
+
+  const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
+
+  // Lógica de revisão: se é uma revisão (dadosParaRevisao existe)
+  const isRevisao = dadosParaRevisao !== null;
+
+  if (isRevisao) {
+    // Verifica se a quantidade de questões aumentou
+    const originalQtd = parseInt(modal.dataset.originalQuantidade) || 0;
+    if (quantidade <= originalQtd) {
+      mostrarToast('A quantidade de questões deve ser maior que a anterior para validar a revisão.', 'error');
+      return;
     }
+  }
 
-    const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
+  if (editandoId) {
+    const index = estudos.findIndex(e => e.id === editandoId);
+    if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
+    const antigo = estudos[index];
+    let concluido = antigo.concluido;
 
-    escritasPendentes++;
-    try {
-    if (editandoId) {
-        const index = estudos.findIndex(e => e.id === editandoId);
-        if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
-        const antigo = estudos[index];
-        // Preserva o status de concluído que o usuário definiu manualmente pelo
-        // checkbox. Editar o estudo (ex: corrigir o texto da unidade) não deve
-        // marcar o estudo como concluído sozinho.
-        const concluido = antigo.concluido;
-        const estudoAtualizado = {
-            ...antigo,
-            curso,
-            unidade,
-            conteudo,
-            dataEstudo,
-            quantidade,
-            erros,
-            desempenho,
-            concluido
-        };
-        estudos[index] = estudoAtualizado;
-        salvarDados();
-        const saved = await salvarNoServidor(estudoAtualizado);
-        if (saved) {
-            estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo, sincronizado: true };
-            salvarDados();
-            mostrarToast('Estudo atualizado!', 'success');
-        } else {
-            mostrarToast('Estudo atualizado localmente, mas houve falha ao sincronizar com o servidor.', 'error');
-        }
-    } else {
-        const novoCodigo = obterProximoCodigo();
-        const concluido = false;
-        const novoEstudo = {
-            id: gerarId(),
-            codigo: novoCodigo,
-            curso,
-            unidade,
-            conteudo,
-            dataEstudo,
-            quantidade,
-            erros,
-            desempenho,
-            concluido,
-            sincronizado: false // ainda não confirmado pelo servidor
-        };
-        estudos.push(novoEstudo);
-        salvarDados();
-        const saved = await salvarNoServidor(novoEstudo);
-        if (saved) {
-            const idx = estudos.findIndex(e => e.id === novoEstudo.id);
-            if (idx !== -1) {
-                estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo, sincronizado: true };
-                salvarDados();
-            }
-            mostrarToast('Estudo adicionado!', 'success');
-        } else {
-            mostrarToast('Estudo salvo localmente, mas houve falha ao sincronizar com o servidor.', 'error');
-        }
-    }
-    } finally {
-        escritasPendentes--;
-    }
-    preencherFiltros();
-    renderizarTabela();
-    atualizarDashboards();
-    closeFormModal();
-}
+    // Se for revisão, atualizar e depois verificar se melhora
+    const estudoAtualizado = {
+      ...antigo,
+      curso,
+      unidade,
+      conteudo,
+      dataEstudo,
+      quantidade,
+      erros,
+      desempenho,
+      concluido: true // ao revisar, marcamos como concluído
+    };
 
-async function excluirEstudo(id) {
-    if (!confirm('Tem certeza que deseja excluir este estudo?')) return;
-    console.log('[excluirEstudo] iniciando exclusão do id:', id);
-
-    const estudo = estudos.find(e => e.id === id);
-    if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
-
-    escritasPendentes++;
-    try {
-        const backup = estudos;
-        estudos = estudos.filter(e => e.id !== id);
-        salvarDados();
-        renderizarTabela();
-        atualizarDashboards();
-
-        const sucesso = await deletarNoServidor(estudo);
-        console.log('[excluirEstudo] resultado da exclusão no servidor:', sucesso);
-
-        if (!sucesso) {
-            // Falhou no servidor: desfaz a remoção local para não ficar
-            // divergente do banco de dados.
-            estudos = backup;
-            salvarDados();
-            preencherFiltros();
-            renderizarTabela();
-            atualizarDashboards();
-            mostrarToast('Falha ao excluir no servidor. Veja o Console (F12) para detalhes.', 'error');
-            return;
-        }
-
-        // Confirma com o servidor o estado real após a exclusão,
-        // para evitar qualquer divergência entre tela e banco de dados.
-        await carregarDoServidor(true);
-        preencherFiltros();
-        renderizarTabela();
-        atualizarDashboards();
-        mostrarToast('Estudo excluído.', 'success');
-    } finally {
-        escritasPendentes--;
-    }
-}
-
-async function toggleConcluido(id, checked) {
-    const estudo = estudos.find(e => e.id === id);
-    if (!estudo) return;
-
-    if (estudo.quantidade === 0 && checked) {
-        openModal(id, 'tabQuestoes');
-        const chk = document.getElementById(`chk-${id}`);
-        if (chk) chk.checked = false;
-        return;
-    }
-
-    const anterior = estudo.concluido;
-    estudo.concluido = checked;
+    estudos[index] = estudoAtualizado;
     salvarDados();
-    renderizarTabela();
-    atualizarDashboards();
-
-    escritasPendentes++;
-    try {
-        const saved = await atualizarStatusNoServidor(estudo, checked);
-        if (saved) {
-            estudo.concluido = saved.concluido;
-            salvarDados();
-        } else if (estudo.sincronizado) {
-            // Falhou ao sincronizar com o servidor: desfaz a mudança local
-            // para não ficar divergente do banco de dados.
-            estudo.concluido = anterior;
-            salvarDados();
-            renderizarTabela();
-            atualizarDashboards();
-            return;
-        }
-        renderizarTabela();
-        atualizarDashboards();
-        mostrarToast(checked ? 'Estudo concluído!' : 'Conclusão revertida.', checked ? 'success' : 'info');
-    } finally {
-        escritasPendentes--;
+    const saved = await salvarNoServidor(estudoAtualizado);
+    if (saved) {
+      estudos[index] = { ...estudoAtualizado, id: saved.id, codigo: saved.codigo };
+      salvarDados();
     }
+    mostrarToast('Estudo atualizado!', 'success');
+    closeFormModal();
+  } else {
+    // Novo estudo
+    const novoCodigo = obterProximoCodigo();
+    let concluido = semQuestoes; // se não fez exercícios, já está concluído
+    if (!semQuestoes && quantidade > 0) concluido = true; // se fez e colocou questões, concluído
+    // Se fez exercícios mas desempenho < 80, será colocado em revisão (concluido true, desempenho < 80)
+    const novoEstudo = {
+      id: gerarId(),
+      codigo: novoCodigo,
+      curso,
+      unidade,
+      conteudo,
+      dataEstudo,
+      quantidade,
+      erros,
+      desempenho,
+      concluido: concluido || (quantidade > 0) // se colocou questões, é concluído
+    };
+    // Se não fez exercícios, forçar desempenho 100% e concluido true
+    if (semQuestoes) {
+      novoEstudo.desempenho = 100;
+      novoEstudo.concluido = true;
+    }
+
+    estudos.push(novoEstudo);
+    salvarDados();
+    const saved = await salvarNoServidor(novoEstudo);
+    if (saved) {
+      const idx = estudos.findIndex(e => e.id === novoEstudo.id);
+      if (idx !== -1) {
+        estudos[idx] = { ...novoEstudo, id: saved.id, codigo: saved.codigo };
+        salvarDados();
+      }
+    }
+    mostrarToast('Estudo adicionado!', 'success');
+    closeFormModal();
+  }
+
+  // Atualizar todos os módulos
+  preencherFiltrosDashboard();
+  atualizarDashboard();
+  renderizarRegistros();
+  renderizarRevisoes();
 }
 
-function handleRowClick(event, id) {
-    if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('.checkbox-wrapper')) return;
-    openModal(id, 'tabGeral');
+// ============================================
+// FUNÇÕES AUXILIARES
+// ============================================
+function gerarId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function obterProximoCodigo() {
+  let max = 0;
+  estudos.forEach(e => { if (e.codigo && e.codigo > max) max = e.codigo; });
+  return max + 1;
+}
+
+function formatDate(d) {
+  if (!d) return '-';
+  const partes = d.split('-');
+  if (partes.length !== 3) return d;
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
 
 function mostrarToast(mensagem, tipo = 'info') {
-    document.querySelectorAll('.floating-message').forEach(el => el.remove());
-    const div = document.createElement('div');
-    div.className = `floating-message ${tipo}`;
-    div.textContent = mensagem;
-    document.body.appendChild(div);
-    setTimeout(() => {
-        div.style.animation = 'slideOutBottom 0.3s ease forwards';
-        setTimeout(() => div.remove(), 300);
-    }, 3000);
+  document.querySelectorAll('.floating-message').forEach(el => el.remove());
+  const div = document.createElement('div');
+  div.className = `floating-message ${tipo}`;
+  div.textContent = mensagem;
+  document.body.appendChild(div);
+  setTimeout(() => {
+    div.style.animation = 'slideOutBottom 0.3s ease forwards';
+    setTimeout(() => div.remove(), 300);
+  }, 3000);
 }
 
-// ============================================
-// EXPORTAÇÃO GLOBAL
-// ============================================
-window.inicializarApp = inicializarApp;
-window.applyFilters = applyFilters;
-window.toggleTodayFilter = toggleTodayFilter;
-window.toggleRevisaoFilter = toggleRevisaoFilter;
+// Exportar funções globais
+window.switchModule = switchModule;
+window.abrirModalNovoEstudo = abrirModalNovoEstudo;
+window.fecharModalExercicios = fecharModalExercicios;
+window.respostaExercicios = respostaExercicios;
 window.openModal = openModal;
 window.closeFormModal = closeFormModal;
 window.switchFormTab = switchFormTab;
 window.salvarEstudo = salvarEstudo;
-window.excluirEstudo = excluirEstudo;
-window.toggleConcluido = toggleConcluido;
-window.handleRowClick = handleRowClick;
-window.importarDados = importarDados;
-window.exportarDados = exportarDados;
-window.abrirModalQuestoes = abrirModalQuestoes;
-window.abrirEdicaoQuestoes = abrirEdicaoQuestoes;
-window.abrirModalDesempenho = abrirModalDesempenho;
-window.fecharModalQuestoes = fecharModalQuestoes;
-window.fecharModalDesempenho = fecharModalDesempenho;
-window.mudarPaginaQuestoes = mudarPaginaQuestoes;
-window.mudarPaginaDesempenho = mudarPaginaDesempenho;
-window.aplicarFiltrosDesempenho = aplicarFiltrosDesempenho;
+window.iniciarRevisao = iniciarRevisao;
+window.atualizarDashboard = atualizarDashboard;
+window.gerarId = gerarId;
+window.obterProximoCodigo = obterProximoCodigo;
