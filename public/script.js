@@ -5,7 +5,7 @@ const API_URL = '';
 let estudos = [];
 let editandoId = null;
 let moduloAtual = 'dashboard';
-let dadosParaRevisao = null; // armazena o estudo que está sendo revisado
+let dadosParaRevisao = null;
 
 // ============================================
 // INICIALIZAÇÃO
@@ -128,7 +128,7 @@ function calcularDesempenho(estudo) {
 }
 
 // ============================================
-// NAVEGAÇÃO ENTRE MÓDULOS
+// NAVEGAÇÃO
 // ============================================
 function switchModule(modulo) {
   moduloAtual = modulo;
@@ -175,9 +175,7 @@ function atualizarDashboard() {
   if (curso) lista = lista.filter(e => e.curso === curso);
   if (unidade) lista = lista.filter(e => e.unidade === unidade);
 
-  // Melhores (5 maiores desempenhos)
   const melhores = [...lista].sort((a,b) => (b.desempenho || 0) - (a.desempenho || 0)).slice(0,5);
-  // Piores (5 menores)
   const piores = [...lista].sort((a,b) => (a.desempenho || 0) - (b.desempenho || 0)).slice(0,5);
 
   document.getElementById('dashboardMelhores').innerHTML = renderizarTabelaRanking(melhores, 'alto');
@@ -196,16 +194,27 @@ function renderizarTabelaRanking(lista, tipo) {
 }
 
 // ============================================
-// REGISTROS (sem checkbox, sem filtros)
+// REGISTROS (com busca e sem ações)
 // ============================================
 function renderizarRegistros() {
   const container = document.getElementById('registrosContainer');
   if (!container) return;
-  // Mostra apenas os que NÃO estão em revisão (concluido true e desempenho >=80) ou pendentes (concluido false)
-  const lista = estudos.filter(e => {
-    if (e.concluido && e.desempenho !== null && e.desempenho < 80) return false; // está em revisão
+  const busca = document.getElementById('searchRegistros')?.value.toLowerCase() || '';
+
+  let lista = estudos.filter(e => {
+    if (e.concluido && e.desempenho !== null && e.desempenho < 80) return false;
     return true;
-  }).sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
+  });
+
+  if (busca) {
+    lista = lista.filter(e => 
+      (e.curso && e.curso.toLowerCase().includes(busca)) ||
+      (e.unidade && e.unidade.toLowerCase().includes(busca)) ||
+      (e.conteudo && e.conteudo.toLowerCase().includes(busca))
+    );
+  }
+
+  lista.sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
 
   if (lista.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary);">Nenhum registro encontrado.</div>';
@@ -234,12 +243,11 @@ function renderizarRegistros() {
 }
 
 // ============================================
-// REVISÕES (com checkbox e sem botão excluir)
+// REVISÕES (com checkbox, sem excluir)
 // ============================================
 function renderizarRevisoes() {
   const container = document.getElementById('revisoesContainer');
   if (!container) return;
-  // Mostra apenas os que precisam revisão: concluido = true e desempenho < 80
   const lista = estudos.filter(e => e.concluido && e.desempenho !== null && e.desempenho < 80)
     .sort((a,b) => (a.codigo || 0) - (b.codigo || 0));
 
@@ -273,17 +281,15 @@ function renderizarRevisoes() {
 }
 
 // ============================================
-// REVISÃO - ABRIR MODAL DE QUESTÕES
+// REVISÃO - ABRIR MODAL
 // ============================================
 function iniciarRevisao(id, checked) {
-  if (!checked) return; // só trata quando marcar
+  if (!checked) return;
   const estudo = estudos.find(e => e.id === id);
   if (!estudo) return;
-  // Desmarcar checkbox (será marcado após salvar se for bem-sucedido)
   const chk = document.getElementById(`chk-rev-${id}`);
   if (chk) chk.checked = false;
 
-  // Abrir modal de revisão (apenas aba Questões)
   dadosParaRevisao = estudo;
   openModalRevisao(estudo);
 }
@@ -292,7 +298,6 @@ function openModalRevisao(estudo) {
   const modal = document.getElementById('formModal');
   const title = document.getElementById('formModalTitle');
   title.textContent = `Revisão - ${estudo.curso} - ${estudo.conteudo || 'sem conteúdo'}`;
-  // Preencher campos com dados atuais
   document.getElementById('f_curso').value = estudo.curso || '';
   document.getElementById('f_unidade').value = estudo.unidade || '';
   document.getElementById('f_conteudo').value = estudo.conteudo || '';
@@ -300,27 +305,21 @@ function openModalRevisao(estudo) {
   document.getElementById('f_quantidade').value = estudo.quantidade || 0;
   document.getElementById('f_erros').value = estudo.erros || 0;
 
-  // Esconder a aba Geral e mostrar apenas Questões
   document.querySelectorAll('.tab-btn').forEach(b => b.style.display = 'none');
   document.getElementById('tabBtnQuestoes').style.display = 'inline-block';
   document.getElementById('tabBtnQuestoes').click();
-  // Esconder a aba Geral
   document.getElementById('tabGeral').classList.remove('active');
   document.getElementById('tabQuestoes').classList.add('active');
 
-  editandoId = estudo.id; // para atualizar
+  editandoId = estudo.id;
   modal.style.display = 'flex';
   modal.classList.add('show');
-  // Armazenar o estudo original para comparar quantidades depois
   modal.dataset.originalQuantidade = estudo.quantidade || 0;
 }
 
 // ============================================
 // NOVO ESTUDO - MODAL DE CONFIRMAÇÃO
 // ============================================
-let respostaExerciciosPendente = false;
-let dadosNovoEstudo = null;
-
 function abrirModalNovoEstudo() {
   document.getElementById('modalExercicios').style.display = 'flex';
   document.getElementById('modalExercicios').classList.add('show');
@@ -334,17 +333,11 @@ function fecharModalExercicios() {
 
 function respostaExercicios(sim) {
   fecharModalExercicios();
-  if (sim) {
-    // Abrir modal com ambas as abas
-    openModal(null, true);
-  } else {
-    // Abrir modal apenas com a aba Geral, e ao salvar, definirá concluido=true, desempenho=100%
-    openModal(null, false);
-  }
+  openModal(null, sim);
 }
 
 // ============================================
-// MODAL DE FORMULÁRIO (GERAL/QUESTÕES)
+// MODAL DE FORMULÁRIO
 // ============================================
 function openModal(id = null, comQuestoes = true) {
   editandoId = id;
@@ -370,11 +363,9 @@ function openModal(id = null, comQuestoes = true) {
     document.getElementById('f_erros').value = 0;
   }
 
-  // Controlar visibilidade das abas
   const tabQuestoes = document.getElementById('tabBtnQuestoes');
   if (comQuestoes) {
     tabQuestoes.style.display = 'inline-block';
-    // Ativar aba Geral por padrão
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.tab-btn[data-tab="tabGeral"]').classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -389,7 +380,6 @@ function openModal(id = null, comQuestoes = true) {
 
   modal.style.display = 'flex';
   modal.classList.add('show');
-  // Sinalizar se veio sem questões
   modal.dataset.semQuestoes = (!comQuestoes).toString();
 }
 
@@ -399,7 +389,7 @@ function closeFormModal() {
   modal.classList.remove('show');
   editandoId = null;
   dadosParaRevisao = null;
-  document.querySelectorAll('.tab-btn').forEach(b => b.style.display = 'inline-block'); // restaurar abas
+  document.querySelectorAll('.tab-btn').forEach(b => b.style.display = 'inline-block');
 }
 
 function switchFormTab(tabId, btn) {
@@ -410,7 +400,7 @@ function switchFormTab(tabId, btn) {
 }
 
 // ============================================
-// SALVAR ESTUDO (CRIAR OU ATUALIZAR)
+// SALVAR ESTUDO
 // ============================================
 async function salvarEstudo() {
   const curso = document.getElementById('f_curso').value.trim();
@@ -428,19 +418,15 @@ async function salvarEstudo() {
   const modal = document.getElementById('formModal');
   const semQuestoes = modal.dataset.semQuestoes === 'true';
 
-  // Se for novo estudo sem questões, forçar desempenho 100% e concluido
   if (semQuestoes && !editandoId) {
     quantidade = 0;
     erros = 0;
   }
 
   const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
-
-  // Lógica de revisão: se é uma revisão (dadosParaRevisao existe)
   const isRevisao = dadosParaRevisao !== null;
 
   if (isRevisao) {
-    // Verifica se a quantidade de questões aumentou
     const originalQtd = parseInt(modal.dataset.originalQuantidade) || 0;
     if (quantidade <= originalQtd) {
       mostrarToast('A quantidade de questões deve ser maior que a anterior para validar a revisão.', 'error');
@@ -452,9 +438,6 @@ async function salvarEstudo() {
     const index = estudos.findIndex(e => e.id === editandoId);
     if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
     const antigo = estudos[index];
-    let concluido = antigo.concluido;
-
-    // Se for revisão, atualizar e depois verificar se melhora
     const estudoAtualizado = {
       ...antigo,
       curso,
@@ -464,9 +447,8 @@ async function salvarEstudo() {
       quantidade,
       erros,
       desempenho,
-      concluido: true // ao revisar, marcamos como concluído
+      concluido: true
     };
-
     estudos[index] = estudoAtualizado;
     salvarDados();
     const saved = await salvarNoServidor(estudoAtualizado);
@@ -477,11 +459,9 @@ async function salvarEstudo() {
     mostrarToast('Estudo atualizado!', 'success');
     closeFormModal();
   } else {
-    // Novo estudo
     const novoCodigo = obterProximoCodigo();
-    let concluido = semQuestoes; // se não fez exercícios, já está concluído
-    if (!semQuestoes && quantidade > 0) concluido = true; // se fez e colocou questões, concluído
-    // Se fez exercícios mas desempenho < 80, será colocado em revisão (concluido true, desempenho < 80)
+    let concluido = semQuestoes;
+    if (!semQuestoes && quantidade > 0) concluido = true;
     const novoEstudo = {
       id: gerarId(),
       codigo: novoCodigo,
@@ -492,14 +472,12 @@ async function salvarEstudo() {
       quantidade,
       erros,
       desempenho,
-      concluido: concluido || (quantidade > 0) // se colocou questões, é concluído
+      concluido: concluido || (quantidade > 0)
     };
-    // Se não fez exercícios, forçar desempenho 100% e concluido true
     if (semQuestoes) {
       novoEstudo.desempenho = 100;
       novoEstudo.concluido = true;
     }
-
     estudos.push(novoEstudo);
     salvarDados();
     const saved = await salvarNoServidor(novoEstudo);
@@ -514,7 +492,6 @@ async function salvarEstudo() {
     closeFormModal();
   }
 
-  // Atualizar todos os módulos
   preencherFiltrosDashboard();
   atualizarDashboard();
   renderizarRegistros();
@@ -522,25 +499,22 @@ async function salvarEstudo() {
 }
 
 // ============================================
-// FUNÇÕES AUXILIARES
+// AUXILIARES
 // ============================================
 function gerarId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
-
 function obterProximoCodigo() {
   let max = 0;
   estudos.forEach(e => { if (e.codigo && e.codigo > max) max = e.codigo; });
   return max + 1;
 }
-
 function formatDate(d) {
   if (!d) return '-';
   const partes = d.split('-');
   if (partes.length !== 3) return d;
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
-
 function mostrarToast(mensagem, tipo = 'info') {
   document.querySelectorAll('.floating-message').forEach(el => el.remove());
   const div = document.createElement('div');
@@ -553,7 +527,9 @@ function mostrarToast(mensagem, tipo = 'info') {
   }, 3000);
 }
 
-// Exportar funções globais
+// ============================================
+// EXPORTAÇÃO GLOBAL
+// ============================================
 window.switchModule = switchModule;
 window.abrirModalNovoEstudo = abrirModalNovoEstudo;
 window.fecharModalExercicios = fecharModalExercicios;
@@ -564,5 +540,7 @@ window.switchFormTab = switchFormTab;
 window.salvarEstudo = salvarEstudo;
 window.iniciarRevisao = iniciarRevisao;
 window.atualizarDashboard = atualizarDashboard;
+window.renderizarRegistros = renderizarRegistros;
+window.renderizarRevisoes = renderizarRevisoes;
 window.gerarId = gerarId;
 window.obterProximoCodigo = obterProximoCodigo;
