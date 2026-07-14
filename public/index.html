@@ -7,69 +7,74 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-container">
-    <!-- Menu Superior -->
-    <nav class="menu">
-      <div class="menu-brand">MalvsStudy</div>
-      <ul class="menu-list">
-        <li class="menu-item active" data-modulo="dashboard" onclick="switchModule('dashboard')">Dashboard</li>
-        <li class="menu-item" data-modulo="registros" onclick="switchModule('registros')">Registros</li>
-        <li class="menu-item" data-modulo="revisoes" onclick="switchModule('revisoes')">Revisões</li>
-      </ul>
-    </nav>
+  <!-- Menu Superior (estilo imagem) -->
+  <nav class="menu">
+    <div class="menu-brand">MalvsStudy</div>
+    <ul class="menu-list">
+      <li class="menu-item active" data-modulo="dashboard" onclick="switchModule('dashboard')">Dashboard</li>
+      <li class="menu-item" data-modulo="registros" onclick="switchModule('registros')">Registros</li>
+      <li class="menu-item" data-modulo="revisoes" onclick="switchModule('revisoes')">Revisões</li>
+    </ul>
+  </nav>
 
-    <!-- Conteúdo dos Módulos -->
-    <div class="module-container">
-      <!-- Módulo Dashboard -->
-      <div id="module-dashboard" class="module active">
-        <div class="module-header">
-          <h2>Dashboard de Desempenho</h2>
+  <!-- Conteúdo -->
+  <div class="module-container">
+    <!-- Módulo Dashboard -->
+    <div id="module-dashboard" class="module active">
+      <div class="module-header">
+        <h2>Dashboard de Desempenho</h2>
+      </div>
+      <div class="filter-bar" style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+        <div class="filter-dropdown">
+          <select id="filtroDashboardCurso" onchange="atualizarDashboard()">
+            <option value="">Todos os Cursos</option>
+          </select>
         </div>
-        <div class="dashboard-filters" style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-          <div class="filter-dropdown-inline">
-            <select id="filtroDashboardCurso" onchange="atualizarDashboard()">
-              <option value="">Todos os Cursos</option>
-            </select>
-          </div>
-          <div class="filter-dropdown-inline">
-            <select id="filtroDashboardUnidade" onchange="atualizarDashboard()">
-              <option value="">Todas as Unidades</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
-          <div class="card">
-            <h3 style="margin-top:0; color:var(--success-color);">🏆 Melhores Desempenhos</h3>
-            <div id="dashboardMelhores"></div>
-          </div>
-          <div class="card">
-            <h3 style="margin-top:0; color:var(--danger-color);">⚠️ Piores Desempenhos</h3>
-            <div id="dashboardPiores"></div>
-          </div>
+        <div class="filter-dropdown">
+          <select id="filtroDashboardUnidade" onchange="atualizarDashboard()">
+            <option value="">Todas as Unidades</option>
+          </select>
         </div>
       </div>
-
-      <!-- Módulo Registros -->
-      <div id="module-registros" class="module">
-        <div class="module-header">
-          <h2>Registros de Estudo</h2>
-          <button onclick="abrirModalNovoEstudo()" class="btn-new-order-header">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Novo Estudo
-          </button>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--success-color);">🏆 Melhores Desempenhos</h3>
+          <div id="dashboardMelhores"></div>
         </div>
-        <div id="registrosContainer"></div>
-      </div>
-
-      <!-- Módulo Revisões -->
-      <div id="module-revisoes" class="module">
-        <div class="module-header">
-          <h2>Revisões Necessárias</h2>
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--danger-color);">⚠️ Piores Desempenhos</h3>
+          <div id="dashboardPiores"></div>
         </div>
-        <div id="revisoesContainer"></div>
       </div>
+    </div>
+
+    <!-- Módulo Registros (estilo Tabela de Preços) -->
+    <div id="module-registros" class="module">
+      <div class="module-header">
+        <h2>Registros de Estudo</h2>
+        <button onclick="abrirModalNovoEstudo()" class="btn-new">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Novo Estudo
+        </button>
+      </div>
+      <!-- Barra de busca (estilo imagem) -->
+      <div class="search-bar">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchRegistros" placeholder="Buscar por curso, unidade ou conteúdo..." oninput="renderizarRegistros()">
+      </div>
+      <div id="registrosContainer"></div>
+    </div>
+
+    <!-- Módulo Revisões -->
+    <div id="module-revisoes" class="module">
+      <div class="module-header">
+        <h2>Revisões Necessárias</h2>
+      </div>
+      <div id="revisoesContainer"></div>
     </div>
   </div>
 
@@ -88,7 +93,7 @@
     </div>
   </div>
 
-  <!-- Modal de edição (reutilizado) -->
+  <!-- Modal de edição -->
   <div class="modal-overlay" id="formModal" style="display:none;">
     <div class="modal-content">
       <div class="modal-header">
@@ -116,17 +121,13 @@
         </div>
       </div>
       <div class="modal-actions">
-        <button type="button" class="save" onclick="salvarEstudo()">Salvar</button>
-        <button type="button" class="btn-cancel" onclick="closeFormModal()">Cancelar</button>
+        <button class="save" onclick="salvarEstudo()">Salvar</button>
+        <button class="btn-cancel" onclick="closeFormModal()">Cancelar</button>
       </div>
     </div>
   </div>
 
   <script src="script.js"></script>
-  <script>
-    window.addEventListener('load', function() {
-      inicializarApp();
-    });
-  </script>
+  <script>window.addEventListener('load', inicializarApp);</script>
 </body>
 </html>
