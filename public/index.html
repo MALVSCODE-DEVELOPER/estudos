@@ -40,9 +40,7 @@
     <main class="main-content">
       <!-- DASHBOARD -->
       <div id="module-dashboard" class="module active">
-        <div class="module-header">
-          <h2>Dashboard de Desempenho</h2>
-        </div>
+        <div class="module-header"><h2>Dashboard de Desempenho</h2></div>
         <div class="filter-bar">
           <select id="filtroDashboardCurso" onchange="atualizarDashboard()">
             <option value="">Todos os Cursos</option>
@@ -85,17 +83,80 @@
 
       <!-- REVISÕES -->
       <div id="module-revisoes" class="module">
-        <div class="module-header">
-          <h2>Revisões Necessárias</h2>
-        </div>
+        <div class="module-header"><h2>Revisões Necessárias</h2></div>
         <div id="revisoesContainer"></div>
       </div>
     </main>
   </div>
 
-  <!-- Modais (mantidos) -->
-  <div class="modal-overlay" id="modalExercicios" style="display:none;">...</div>
-  <div class="modal-overlay" id="formModal" style="display:none;">...</div>
+  <!-- MODAL: pergunta se fez exercícios -->
+  <div class="modal-overlay" id="modalExercicios" style="display:none;">
+    <div class="modal-content" style="max-width:420px;text-align:center;">
+      <div class="modal-header" style="border-bottom:none;">
+        <span class="modal-title">Novo Estudo</span>
+        <button class="close-modal" onclick="fecharModalExercicios()">&times;</button>
+      </div>
+      <p style="margin-bottom:1.5rem;color:var(--text-secondary);">Você realizou exercícios sobre este conteúdo?</p>
+      <div class="modal-actions" style="justify-content:center;">
+        <button class="btn-secondary" onclick="respostaExercicios(false)">Não</button>
+        <button class="btn-primary" onclick="respostaExercicios(true)">Sim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: formulário de estudo / revisão -->
+  <div class="modal-overlay" id="formModal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title" id="formModalTitle">Novo Estudo</span>
+        <button class="close-modal" onclick="closeFormModal()">&times;</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tabGeral" onclick="switchFormTab('tabGeral', this)">Geral</button>
+        <button class="tab-btn" id="tabBtnQuestoes" data-tab="tabQuestoes" onclick="switchFormTab('tabQuestoes', this)">Questões</button>
+      </div>
+
+      <div class="tab-content active" id="tabGeral">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Curso *</label>
+            <input id="f_curso" type="text" placeholder="Ex: Matemática">
+          </div>
+          <div class="form-group">
+            <label>Unidade</label>
+            <input id="f_unidade" type="text" placeholder="Ex: Unidade 3">
+          </div>
+          <div class="form-group">
+            <label>Conteúdo</label>
+            <input id="f_conteudo" type="text" placeholder="Ex: Funções quadráticas">
+          </div>
+          <div class="form-group">
+            <label>Data do Estudo</label>
+            <input id="f_dataEstudo" type="date">
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tabQuestoes">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Quantidade de Questões</label>
+            <input id="f_quantidade" type="number" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <label>Erros</label>
+            <input id="f_erros" type="number" min="0" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeFormModal()">Cancelar</button>
+        <button class="btn-primary" onclick="salvarEstudo()">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
   <script>window.addEventListener('load', inicializarApp);</script>
