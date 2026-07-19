@@ -14,6 +14,14 @@ let filtroCurso = '';
 let filtroHoje = false;
 let filtroRevisao = false;
 let filtroBusca = '';
+// Controla o fluxo "Novo Estudo": se o usuário informou que NÃO realizou
+// exercícios sobre o conteúdo, a aba de Questões é ocultada e o estudo
+// é salvo automaticamente como concluído/100%.
+let modoSemExercicios = false;
+// Guarda os valores originais de quantidade/erros ao editar um estudo,
+// para impedir que sejam reduzidos.
+let estudoOriginalQuantidade = 0;
+let estudoOriginalErros = 0;
 
 // ============================================
 // INICIALIZAÇÃO
@@ -390,16 +398,6 @@ function atualizarDashboards() {
 let paginaQuestoes = 1;
 let dadosQuestoes = [];
 
-function abrirModalQuestoes(id = null) {
-    const modal = document.getElementById('modalQuestoes');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    modal.classList.add('show');
-    let lista = estudos.filter(e => (e.quantidade || 0) > 0);
-    lista.sort((a, b) => (a.quantidade || 0) - (b.quantidade || 0));
-    renderPaginaModalQuestoes(lista, 1);
-}
-
 function renderPaginaModalQuestoes(lista, pagina) {
     dadosQuestoes = lista;
     paginaQuestoes = pagina;
@@ -547,14 +545,43 @@ function obterProximoCodigo() {
     return max + 1;
 }
 
+// --------------------------------------------
+// Fluxo "Novo Estudo": pergunta se já realizou exercícios
+// --------------------------------------------
+function iniciarNovoEstudo() {
+    const modal = document.getElementById('modalConfirmExercicios');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('show');
+}
+
+function fecharModalConfirmExercicios() {
+    const modal = document.getElementById('modalConfirmExercicios');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+}
+
+function confirmarComExercicios(comExercicios) {
+    fecharModalConfirmExercicios();
+    modoSemExercicios = !comExercicios;
+    openModal(null, 'tabGeral');
+}
+
 function abrirModalQuestoes(id) {
     openModal(id, 'tabQuestoes');
 }
 
 function openModal(id = null, tab = 'tabGeral') {
     editandoId = id;
+    // Confirmação de "sem exercícios" só se aplica à criação de um novo
+    // estudo. Em edição, o fluxo/abas completos sempre ficam disponíveis.
+    if (id) modoSemExercicios = false;
+
     const modal = document.getElementById('formModal');
     const title = document.getElementById('formModalTitle');
+    const tabsNav = document.getElementById('formTabsNav');
+
     if (id) {
         const estudo = estudos.find(e => e.id === id);
         if (!estudo) { mostrarToast('Estudo não encontrado', 'error'); return; }
@@ -565,6 +592,9 @@ function openModal(id = null, tab = 'tabGeral') {
         document.getElementById('f_dataEstudo').value = estudo.dataEstudo || '';
         document.getElementById('f_quantidade').value = estudo.quantidade || 0;
         document.getElementById('f_erros').value = estudo.erros || 0;
+        // Guarda os valores originais para impedir redução
+        estudoOriginalQuantidade = estudo.quantidade || 0;
+        estudoOriginalErros = estudo.erros || 0;
     } else {
         title.textContent = 'Novo Estudo';
         document.getElementById('f_curso').value = '';
@@ -573,13 +603,26 @@ function openModal(id = null, tab = 'tabGeral') {
         document.getElementById('f_dataEstudo').value = '';
         document.getElementById('f_quantidade').value = 0;
         document.getElementById('f_erros').value = 0;
+        estudoOriginalQuantidade = 0;
+        estudoOriginalErros = 0;
     }
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    const tabEl = document.getElementById(tab);
+    document.getElementById('f_quantidade').min = estudoOriginalQuantidade;
+    document.getElementById('f_erros').min = estudoOriginalErros;
+
+    document.querySelectorAll('#formModal .tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#formModal .tab-btn').forEach(el => el.classList.remove('active'));
+
+    // Se estamos criando um novo estudo sem exercícios, escondemos a aba
+    // de Questões e mantemos apenas a aba Geral.
+    const semExerciciosNoCadastro = (!id && modoSemExercicios);
+    if (tabsNav) tabsNav.style.display = semExerciciosNoCadastro ? 'none' : '';
+    const effectiveTab = semExerciciosNoCadastro ? 'tabGeral' : tab;
+
+    const tabEl = document.getElementById(effectiveTab);
     if (tabEl) tabEl.classList.add('active');
-    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    const btn = document.querySelector(`#formModal .tab-btn[data-tab="${effectiveTab}"]`);
     if (btn) btn.classList.add('active');
+
     modal.style.display = 'flex';
     modal.classList.add('show');
 }
@@ -589,11 +632,14 @@ function closeFormModal() {
     modal.style.display = 'none';
     modal.classList.remove('show');
     editandoId = null;
+    modoSemExercicios = false;
+    const tabsNav = document.getElementById('formTabsNav');
+    if (tabsNav) tabsNav.style.display = '';
 }
 
 function switchFormTab(tabId, btn) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#formModal .tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#formModal .tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     btn.classList.add('active');
 }
@@ -603,12 +649,34 @@ async function salvarEstudo() {
     const unidade = document.getElementById('f_unidade').value.trim();
     const conteudo = document.getElementById('f_conteudo').value.trim();
     const dataEstudo = document.getElementById('f_dataEstudo').value || null;
-    const quantidade = parseInt(document.getElementById('f_quantidade').value) || 0;
-    const erros = parseInt(document.getElementById('f_erros').value) || 0;
 
     if (!curso) {
         mostrarToast('O campo Curso é obrigatório.', 'error');
         return;
+    }
+
+    let quantidade = parseInt(document.getElementById('f_quantidade').value) || 0;
+    let erros = parseInt(document.getElementById('f_erros').value) || 0;
+
+    // Regra: nunca permitir reduzir a quantidade de questões ou de erros
+    // já registrados anteriormente para o mesmo estudo.
+    if (editandoId) {
+        if (quantidade < estudoOriginalQuantidade) {
+            mostrarToast('Não é possível diminuir a quantidade de questões já registrada.', 'error');
+            return;
+        }
+        if (erros < estudoOriginalErros) {
+            mostrarToast('Não é possível diminuir a quantidade de erros já registrada.', 'error');
+            return;
+        }
+    }
+
+    // Fluxo "Novo Estudo" sem exercícios: dado como 100% e concluído
+    // automaticamente, sem depender dos campos (ocultos) de questões/erros.
+    const criandoSemExercicios = (!editandoId && modoSemExercicios);
+    if (criandoSemExercicios) {
+        quantidade = 1;
+        erros = 0;
     }
 
     const desempenho = quantidade === 0 ? null : Math.round(((quantidade - erros) / quantidade) * 100);
@@ -617,8 +685,11 @@ async function salvarEstudo() {
         const index = estudos.findIndex(e => e.id === editandoId);
         if (index === -1) { mostrarToast('Estudo não encontrado', 'error'); return; }
         const antigo = estudos[index];
+        // A conclusão automática só ocorre quando o desempenho atinge o
+        // requisito mínimo (>= 80%). Caso contrário, o status permanece
+        // como estava (sem marcação, se ainda não concluído).
         let concluido = antigo.concluido;
-        if (quantidade > 0) {
+        if (quantidade > 0 && desempenho !== null && desempenho >= 80) {
             concluido = true;
         }
         const estudoAtualizado = {
@@ -642,7 +713,7 @@ async function salvarEstudo() {
         mostrarToast('Estudo atualizado!', 'success');
     } else {
         const novoCodigo = obterProximoCodigo();
-        const concluido = quantidade > 0;
+        const concluido = criandoSemExercicios || (quantidade > 0 && desempenho !== null && desempenho >= 80);
         const novoEstudo = {
             id: gerarId(),
             codigo: novoCodigo,
@@ -740,6 +811,9 @@ window.toggleConcluido = toggleConcluido;
 window.handleRowClick = handleRowClick;
 window.importarDados = importarDados;
 window.exportarDados = exportarDados;
+window.iniciarNovoEstudo = iniciarNovoEstudo;
+window.fecharModalConfirmExercicios = fecharModalConfirmExercicios;
+window.confirmarComExercicios = confirmarComExercicios;
 window.abrirModalQuestoes = abrirModalQuestoes;
 window.abrirModalDesempenho = abrirModalDesempenho;
 window.fecharModalQuestoes = fecharModalQuestoes;
