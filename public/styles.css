@@ -203,3 +203,7 @@ button.btn-cancel { background:var(--btn-delete)!important; }
 .paginacao button:hover:not(:disabled) { background:var(--primary); color:white; }
 .paginacao button:disabled { opacity:0.4; cursor:not-allowed; }
 .paginacao span { font-size:0.85rem; color:var(--text-secondary); }
+
+/* Modal de confirmação (Você realizou exercícios?) */
+#modalConfirmExercicios .modal-content { max-width:420px; }
+.confirm-question { color:var(--text-primary); font-size:0.95rem; margin-bottom:0.25rem; }
