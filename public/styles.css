@@ -14,10 +14,9 @@
   --success: #22C55E;
   --danger: #EF4444;
   --warning: #F59E0B;
-  /* Cabeçalho de tabela: cor sólida escura, alto contraste com texto branco (igual referência) */
-  --th-bg: #47536b;
+  --th-bg: #2c3e50;
   --th-color: #ffffff;
-  --th-border: #47536b;
+  --th-border: #2c3e50;
   --table-stripe: #fafbfc;
   --table-hover: #f0f2f5;
   --btn-edit: #6c757d;
@@ -66,7 +65,10 @@ body {
   margin-bottom:1rem;
   letter-spacing:-0.3px;
 }
-.sidebar-nav ul { list-style:none; padding:0 0.8rem; }
+.sidebar-nav ul {
+  list-style:none;
+  padding:0 0.8rem;
+}
 .sidebar-item {
   display:flex;
   align-items:center;
@@ -79,9 +81,18 @@ body {
   transition:all 0.15s;
   margin-bottom:0.2rem;
 }
-.sidebar-item:hover { background:#f0f2f5; color:var(--text-primary); }
-.sidebar-item.active { background:var(--primary); color:white; }
-.sidebar-item svg { flex-shrink:0; stroke:currentColor; }
+.sidebar-item:hover {
+  background:#f0f2f5;
+  color:var(--text-primary);
+}
+.sidebar-item.active {
+  background:var(--primary);
+  color:white;
+}
+.sidebar-item svg {
+  flex-shrink:0;
+  stroke:currentColor;
+}
 
 /* ========== CONTEÚDO PRINCIPAL ========== */
 .main-content {
@@ -98,7 +109,11 @@ body {
   align-items:center;
   margin-bottom:1.2rem;
 }
-.module-header h2 { font-size:1.4rem; font-weight:700; color:var(--text-primary); }
+.module-header h2 {
+  font-size:1.4rem;
+  font-weight:700;
+  color:var(--text-primary);
+}
 .btn-new {
   background:var(--primary);
   color:white;
@@ -115,7 +130,12 @@ body {
 .btn-new:hover { background:#2563EB; }
 
 /* ========== FILTROS ========== */
-.filter-bar { display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap; }
+.filter-bar {
+  display:flex;
+  gap:1rem;
+  margin-bottom:1.5rem;
+  flex-wrap:wrap;
+}
 .filter-bar select {
   padding:0.4rem 2rem 0.4rem 0.8rem;
   border:1px solid var(--border-color);
@@ -129,8 +149,12 @@ body {
 }
 .filter-bar select:focus { outline:none; border-color:var(--primary); }
 
-/* ========== CARDS (Dashboard) ========== */
-.dashboard-cards { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+/* ========== CARDS ========== */
+.dashboard-cards {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1.5rem;
+}
 .card {
   background:var(--bg-card);
   border:1px solid var(--border-color);
@@ -138,7 +162,12 @@ body {
   padding:1.2rem 1.2rem 0.8rem 1.2rem;
   box-shadow:var(--shadow);
 }
-.card h3 { font-size:1.05rem; margin-bottom:0.8rem; font-weight:600; color:var(--text-primary); }
+.card h3 {
+  font-size:1.05rem;
+  margin-bottom:0.8rem;
+  font-weight:600;
+  color:var(--text-primary);
+}
 
 /* ========== BARRA DE BUSCA ========== */
 .search-bar {
@@ -151,24 +180,38 @@ body {
   gap:0.6rem;
   margin-bottom:1.2rem;
 }
-.search-bar input { flex:1; border:none; padding:0.5rem 0; background:transparent; font-size:0.95rem; color:var(--text-primary); }
+.search-bar input {
+  flex:1;
+  border:none;
+  padding:0.5rem 0;
+  background:transparent;
+  font-size:0.95rem;
+  color:var(--text-primary);
+}
 .search-bar input:focus { outline:none; }
 .search-bar input::placeholder { color:#9a9ab0; }
 
-/* ========== TABELAS (cabeçalho escuro, sempre com contraste) ========== */
-table { width:100%; border-collapse:collapse; font-size:0.9rem; background:var(--bg-card); border-radius:8px; overflow:hidden; }
+/* ========== TABELAS (cabeçalho escuro) ========== */
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.9rem;
+}
 thead th {
-  background:var(--th-bg) !important;
-  color:var(--th-color) !important;
+  background:var(--th-bg);
+  color:var(--th-color);
   padding:10px 12px;
   text-align:left;
-  font-weight:700;
+  font-weight:600;
   font-size:0.75rem;
   text-transform:uppercase;
-  letter-spacing:0.4px;
+  letter-spacing:0.3px;
   border-bottom:2px solid var(--th-border);
 }
-td { padding:10px 12px; border-bottom:1px solid var(--border-color); }
+td {
+  padding:10px 12px;
+  border-bottom:1px solid var(--border-color);
+}
 tbody tr:nth-child(even) { background:var(--table-stripe); }
 tbody tr:hover { background:var(--table-hover); }
 
@@ -179,8 +222,8 @@ tbody tr:hover { background:var(--table-hover); }
 
 /* ========== BOTÕES DE AÇÃO ========== */
 .btn-action {
-  padding:5px 14px;
-  border-radius:5px;
+  padding:4px 12px;
+  border-radius:4px;
   border:none;
   font-size:0.75rem;
   font-weight:600;
@@ -188,14 +231,20 @@ tbody tr:hover { background:var(--table-hover); }
   transition:all 0.15s;
   margin:0 2px;
 }
-.btn-action.edit { background:var(--btn-edit); color:white; }
+.btn-action.edit {
+  background:var(--btn-edit);
+  color:white;
+}
 .btn-action.edit:hover { background:#5a6268; }
-.btn-action.delete { background:var(--btn-delete); color:white; }
+.btn-action.delete {
+  background:var(--btn-delete);
+  color:white;
+}
 .btn-action.delete:hover { background:#c82333; }
 
-/* ========== CHECKBOX (só usado em Revisões) ========== */
-.checkbox-wrapper { display:inline-flex; align-items:center; position:relative; width:34px; height:34px; }
-.styled-checkbox { position:absolute; opacity:0; width:34px; height:34px; cursor:pointer; margin:0; z-index:1; }
+/* ========== CHECKBOX ========== */
+.checkbox-wrapper { display:inline-flex; align-items:center; }
+.styled-checkbox { position:absolute; opacity:0; width:36px; height:36px; cursor:pointer; }
 .checkbox-label-styled {
   display:inline-flex;
   align-items:center;
@@ -208,8 +257,16 @@ tbody tr:hover { background:var(--table-hover); }
   background:var(--bg-card);
   transition:0.2s;
 }
-.styled-checkbox:checked + .checkbox-label-styled { background:var(--success); border-color:var(--success); }
-.styled-checkbox:checked + .checkbox-label-styled::after { content:'✓'; color:white; font-size:0.9rem; font-weight:700; }
+.styled-checkbox:checked + .checkbox-label-styled {
+  background:var(--primary);
+  border-color:var(--primary);
+}
+.styled-checkbox:checked + .checkbox-label-styled::after {
+  content:'✓';
+  color:white;
+  font-size:0.9rem;
+  font-weight:700;
+}
 
 /* ========== MODAIS ========== */
 .modal-overlay {
@@ -244,10 +301,22 @@ tbody tr:hover { background:var(--table-hover); }
   border-bottom:1px solid var(--border-color);
 }
 .modal-title { font-size:1.2rem; font-weight:700; color:var(--text-primary); }
-.close-modal { background:transparent!important; border:none!important; font-size:1.3rem; color:#9a9ab0; cursor:pointer; padding:0 6px; }
+.close-modal {
+  background:transparent!important;
+  border:none!important;
+  font-size:1.3rem;
+  color:#9a9ab0;
+  cursor:pointer;
+  padding:0 6px;
+}
 .close-modal:hover { color:var(--text-primary); }
 
-.tabs { display:flex; gap:0.5rem; border-bottom:1px solid var(--border-color); margin-bottom:1rem; }
+.tabs {
+  display:flex;
+  gap:0.5rem;
+  border-bottom:1px solid var(--border-color);
+  margin-bottom:1rem;
+}
 .tab-btn {
   background:transparent;
   border:none;
@@ -258,11 +327,18 @@ tbody tr:hover { background:var(--table-hover); }
   border-bottom:3px solid transparent;
   transition:0.2s;
 }
-.tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+.tab-btn.active {
+  color:var(--primary);
+  border-bottom-color:var(--primary);
+}
 .tab-content { display:none; }
 .tab-content.active { display:block; }
 
-.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.form-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+}
 .form-group { margin-bottom:0.2rem; }
 label { display:block; font-weight:500; font-size:0.85rem; color:var(--text-secondary); margin-bottom:3px; }
 input, select {
