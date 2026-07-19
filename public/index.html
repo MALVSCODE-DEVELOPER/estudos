@@ -19,46 +19,6 @@
                 </button>
             </div>
 
-            <!-- Dashboard -->
-            <div class="dashboard-grid">
-                <div class="stat-card">
-                    <div class="stat-icon stat-icon-danger">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="statNaoConcluidos">0</div>
-                        <div class="stat-label">Não concluídos</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon stat-icon-warning">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="statRevisoes">0</div>
-                        <div class="stat-label">Revisões</div>
-                    </div>
-                </div>
-                <div class="stat-card" onclick="abrirModalQuestoes()" style="cursor:pointer;">
-                    <div class="stat-icon stat-icon-info">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="statQuestoes">0</div>
-                        <div class="stat-label">Questões</div>
-                    </div>
-                </div>
-                <div class="stat-card" onclick="abrirModalDesempenho()" style="cursor:pointer;">
-                    <div class="stat-icon stat-icon-success">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="statDesempenho">0%</div>
-                        <div class="stat-label">Desempenho</div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Barra de pesquisa e filtros -->
             <div class="search-bar-wrapper">
                 <div class="search-bar">
@@ -69,6 +29,13 @@
                         <div class="filter-dropdown-inline">
                             <select id="filterCurso" onchange="applyFilters()">
                                 <option value="">Todos os Cursos</option>
+                            </select>
+                            <svg class="dropdown-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+
+                        <div class="filter-dropdown-inline">
+                            <select id="filterMateria" onchange="applyFilters()">
+                                <option value="">Todas as Matérias</option>
                             </select>
                             <svg class="dropdown-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </div>
@@ -89,14 +56,11 @@
                                     <line x1="12" y1="17" x2="12.01" y2="17"/>
                                 </svg>
                             </button>
-                            <button id="btnUpload" class="tool-btn" onclick="document.getElementById('fileInput').click()" title="Importar dados (JSON)">
+                            <button id="btnDesempenho" class="tool-btn" onclick="abrirModalDesempenho()" title="Ver desempenho por estudo">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                                 </svg>
                             </button>
-                            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importarDados(event)">
                         </div>
                     </div>
                 </div>
