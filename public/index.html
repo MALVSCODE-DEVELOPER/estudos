@@ -13,7 +13,7 @@
         <div class="container">
             <div class="header">
                 <div class="header-left"><h1>MalvsStudy</h1></div>
-                <button onclick="openModal()" class="btn-new-order-header">
+                <button onclick="iniciarNovoEstudo()" class="btn-new-order-header">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Novo Estudo
                 </button>
@@ -109,6 +109,21 @@
         </div>
     </div>
 
+    <!-- Modal de confirmação: Realizou exercícios? -->
+    <div class="modal-overlay" id="modalConfirmExercicios" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Novo Estudo</h3>
+                <button class="close-modal" onclick="fecharModalConfirmExercicios()">✕</button>
+            </div>
+            <p class="confirm-question">Você realizou exercícios sobre este conteúdo?</p>
+            <div class="modal-actions">
+                <button type="button" class="save" onclick="confirmarComExercicios(true)">Sim</button>
+                <button type="button" class="btn-cancel" onclick="confirmarComExercicios(false)">Não</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de edição -->
     <div class="modal-overlay" id="formModal" style="display:none;">
         <div class="modal-content">
@@ -117,7 +132,7 @@
                 <button class="close-modal" onclick="closeFormModal()">✕</button>
             </div>
             <div class="tabs-container">
-                <div class="tabs-nav">
+                <div class="tabs-nav" id="formTabsNav">
                     <button class="tab-btn active" data-tab="tabGeral" onclick="switchFormTab('tabGeral', this)">Geral</button>
                     <button class="tab-btn" data-tab="tabQuestoes" onclick="switchFormTab('tabQuestoes', this)">Questões</button>
                 </div>
