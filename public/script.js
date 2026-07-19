@@ -11,6 +11,7 @@ const API_URL = ''; // vazio → as requisições vão para o mesmo domínio
 let estudos = [];
 let editandoId = null;
 let filtroCurso = '';
+let filtroMateria = '';
 let filtroHoje = false;
 let filtroRevisao = false;
 let filtroBusca = '';
@@ -31,7 +32,6 @@ async function inicializarApp() {
     if (!carregado) carregarDados();
     preencherFiltros();
     renderizarTabela();
-    atualizarDashboards();
     window.addEventListener('beforeunload', () => salvarDados());
 }
 
@@ -64,49 +64,6 @@ function carregarDados() {
 
 function salvarDados() {
     localStorage.setItem('estudosData', JSON.stringify(estudos));
-}
-
-function exportarDados() {
-    const dataStr = JSON.stringify(estudos, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_malvsstudy_${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    mostrarToast('Backup baixado com sucesso!', 'success');
-}
-
-function importarDados(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const dados = JSON.parse(e.target.result);
-            if (Array.isArray(dados)) {
-                estudos = dados.map(estudo => ({ ...estudo, conteudo: estudo.conteudo || '', desempenho: calcularDesempenho(estudo) }));
-                let maxCod = 0;
-                estudos.forEach(est => { if (est.codigo && est.codigo > maxCod) maxCod = est.codigo; });
-                estudos.forEach(est => { if (!est.codigo) { maxCod++; est.codigo = maxCod; } });
-                salvarDados();
-                await sincronizarTodosComServidor();
-                preencherFiltros();
-                renderizarTabela();
-                atualizarDashboards();
-                mostrarToast('Dados importados com sucesso!', 'success');
-            } else {
-                mostrarToast('Arquivo inválido.', 'error');
-            }
-        } catch (err) {
-            mostrarToast('Erro ao ler o arquivo.', 'error');
-        }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
 }
 
 // ============================================
@@ -197,13 +154,6 @@ async function atualizarStatusNoServidor(id, concluido) {
     }
 }
 
-async function sincronizarTodosComServidor() {
-    for (const estudo of estudos) {
-        await salvarNoServidor(estudo);
-    }
-    mostrarToast('Dados sincronizados com o servidor!', 'success');
-}
-
 // ============================================
 // CÁLCULO DE DESEMPENHO
 // ============================================
@@ -229,6 +179,20 @@ function preencherFiltros() {
         selectCurso.appendChild(opt);
     });
     selectCurso.value = valorAtual;
+
+    const materias = [...new Set(estudos.map(e => e.unidade).filter(Boolean))];
+    const selectMateria = document.getElementById('filterMateria');
+    if (selectMateria) {
+        const valorMateriaAtual = selectMateria.value;
+        selectMateria.innerHTML = '<option value="">Todas as Matérias</option>';
+        materias.sort().forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            selectMateria.appendChild(opt);
+        });
+        selectMateria.value = valorMateriaAtual;
+    }
 
     const selectCursoDesempenho = document.getElementById('filtroDesempenhoCurso');
     if (selectCursoDesempenho) {
@@ -260,6 +224,8 @@ function preencherFiltros() {
 function applyFilters() {
     filtroBusca = document.getElementById('searchInput').value.toLowerCase();
     filtroCurso = document.getElementById('filterCurso').value;
+    const selectMateria = document.getElementById('filterMateria');
+    filtroMateria = selectMateria ? selectMateria.value : '';
     renderizarTabela();
 }
 
@@ -285,6 +251,9 @@ function getEstudosFiltrados() {
     }
     if (filtroCurso) {
         lista = lista.filter(e => e.curso === filtroCurso);
+    }
+    if (filtroMateria) {
+        lista = lista.filter(e => e.unidade === filtroMateria);
     }
     if (filtroHoje) {
         const hoje = new Date().toISOString().slice(0,10);
@@ -368,28 +337,6 @@ function renderizarTabela() {
     });
     html += `</tbody></table></div>`;
     container.innerHTML = html;
-}
-
-// ============================================
-// DASHBOARDS
-// ============================================
-function atualizarDashboards() {
-    const hoje = new Date().toISOString().slice(0,10);
-    const naoConcluidos = estudos.filter(e => e.dataEstudo && e.dataEstudo < hoje && !e.concluido).length;
-    document.getElementById('statNaoConcluidos').textContent = naoConcluidos;
-
-    const revisoes = estudos.filter(e => {
-        const d = calcularDesempenho(e);
-        return d !== null && d < 80 && !e.concluido;
-    }).length;
-    document.getElementById('statRevisoes').textContent = revisoes;
-
-    const totalQuestoes = estudos.reduce((acc, e) => acc + (parseInt(e.quantidade) || 0), 0);
-    document.getElementById('statQuestoes').textContent = totalQuestoes;
-
-    const desempenhos = estudos.map(e => calcularDesempenho(e)).filter(d => d !== null);
-    const media = desempenhos.length ? Math.round(desempenhos.reduce((a,b) => a+b, 0) / desempenhos.length) : 0;
-    document.getElementById('statDesempenho').textContent = media + '%';
 }
 
 // ============================================
@@ -740,7 +687,6 @@ async function salvarEstudo() {
     }
     preencherFiltros();
     renderizarTabela();
-    atualizarDashboards();
     closeFormModal();
 }
 
@@ -751,7 +697,6 @@ async function excluirEstudo(id) {
     await deletarNoServidor(id);
     preencherFiltros();
     renderizarTabela();
-    atualizarDashboards();
     mostrarToast('Estudo excluído.', 'error');
 }
 
@@ -774,7 +719,6 @@ async function toggleConcluido(id, checked) {
         salvarDados();
     }
     renderizarTabela();
-    atualizarDashboards();
     mostrarToast(checked ? 'Estudo concluído!' : 'Conclusão revertida.', checked ? 'success' : 'info');
 }
 
@@ -809,8 +753,6 @@ window.salvarEstudo = salvarEstudo;
 window.excluirEstudo = excluirEstudo;
 window.toggleConcluido = toggleConcluido;
 window.handleRowClick = handleRowClick;
-window.importarDados = importarDados;
-window.exportarDados = exportarDados;
 window.iniciarNovoEstudo = iniciarNovoEstudo;
 window.fecharModalConfirmExercicios = fecharModalConfirmExercicios;
 window.confirmarComExercicios = confirmarComExercicios;
