@@ -1,103 +1,217 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jornada Acadêmica</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalvsStudy</title>
+    <link rel="icon" type="image/png" href="I.R.-COMERCIO-E-MATERIAIS-ELETRICOS-PRETO.png">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-layout">
-    <!-- SIDEBAR ESQUERDA -->
-    <aside class="sidebar">
-      <div class="sidebar-brand">Jornada Acadêmica</div>
-      <nav class="sidebar-nav">
-        <ul>
-          <li class="sidebar-item active" data-modulo="dashboard" onclick="switchModule('dashboard')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>
-            </svg>
-            Dashboard
-          </li>
-          <li class="sidebar-item" data-modulo="registros" onclick="switchModule('registros')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            Registros
-          </li>
-          <li class="sidebar-item" data-modulo="revisoes" onclick="switchModule('revisoes')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            Revisões
-          </li>
-        </ul>
-      </nav>
-    </aside>
+    <div class="splash-screen" id="splashScreen"><div class="loader"></div></div>
+    <div class="app-content" id="mainView">
+        <div class="container">
+            <div class="header">
+                <div class="header-left"><h1>MalvsStudy</h1></div>
+                <button onclick="openModal()" class="btn-new-order-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Novo Estudo
+                </button>
+            </div>
 
-    <!-- CONTEÚDO PRINCIPAL -->
-    <main class="main-content">
-      <!-- DASHBOARD -->
-      <div id="module-dashboard" class="module active">
-        <div class="module-header">
-          <h2>Dashboard de Desempenho</h2>
-        </div>
-        <div class="filter-bar">
-          <select id="filtroDashboardCurso" onchange="atualizarDashboard()">
-            <option value="">Todos os Cursos</option>
-          </select>
-          <select id="filtroDashboardUnidade" onchange="atualizarDashboard()">
-            <option value="">Todas as Unidades</option>
-          </select>
-        </div>
-        <div class="dashboard-cards">
-          <div class="card">
-            <h3>🏆 Melhores Desempenhos</h3>
-            <div id="dashboardMelhores"><p style="color:#6c757d;">Nenhum dado disponível.</p></div>
-          </div>
-          <div class="card">
-            <h3>⚠️ Piores Desempenhos</h3>
-            <div id="dashboardPiores"><p style="color:#6c757d;">Nenhum dado disponível.</p></div>
-          </div>
-        </div>
-      </div>
+            <!-- Dashboard -->
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-danger">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="statNaoConcluidos">0</div>
+                        <div class="stat-label">Não concluídos</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-warning">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="statRevisoes">0</div>
+                        <div class="stat-label">Revisões</div>
+                    </div>
+                </div>
+                <div class="stat-card" onclick="abrirModalQuestoes()" style="cursor:pointer;">
+                    <div class="stat-icon stat-icon-info">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="statQuestoes">0</div>
+                        <div class="stat-label">Questões</div>
+                    </div>
+                </div>
+                <div class="stat-card" onclick="abrirModalDesempenho()" style="cursor:pointer;">
+                    <div class="stat-icon stat-icon-success">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="statDesempenho">0%</div>
+                        <div class="stat-label">Desempenho</div>
+                    </div>
+                </div>
+            </div>
 
-      <!-- REGISTROS -->
-      <div id="module-registros" class="module">
-        <div class="module-header">
-          <h2>Registros de Estudo</h2>
-          <button onclick="abrirModalNovoEstudo()" class="btn-new">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Novo Estudo
-          </button>
-        </div>
-        <div class="search-bar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input type="text" id="searchRegistros" placeholder="Buscar por curso, unidade ou conteúdo..." oninput="renderizarRegistros()">
-        </div>
-        <div id="registrosContainer"></div>
-      </div>
+            <!-- Barra de pesquisa e filtros -->
+            <div class="search-bar-wrapper">
+                <div class="search-bar">
+                    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+                    <input type="text" id="searchInput" placeholder="Pesquisar por unidade ou conteúdo..." oninput="applyFilters()">
+                    
+                    <div class="search-bar-filters">
+                        <div class="filter-dropdown-inline">
+                            <select id="filterCurso" onchange="applyFilters()">
+                                <option value="">Todos os Cursos</option>
+                            </select>
+                            <svg class="dropdown-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
 
-      <!-- REVISÕES -->
-      <div id="module-revisoes" class="module">
-        <div class="module-header">
-          <h2>Revisões Necessárias</h2>
+                        <div class="toolbar-icons">
+                            <button id="btnCalendar" class="tool-btn" onclick="toggleTodayFilter()" title="Mostrar apenas estudos de hoje">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                            </button>
+                            <button id="btnRevisao" class="tool-btn" onclick="toggleRevisaoFilter()" title="Mostrar apenas estudos com desempenho abaixo de 80%">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                            </button>
+                            <button id="btnUpload" class="tool-btn" onclick="document.getElementById('fileInput').click()" title="Importar dados (JSON)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </button>
+                            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importarDados(event)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de registros -->
+            <div class="card table-card">
+                <div id="registrosContainer"></div>
+            </div>
         </div>
-        <div id="revisoesContainer"></div>
-      </div>
-    </main>
-  </div>
+    </div>
 
-  <!-- Modais (mantidos) -->
-  <div class="modal-overlay" id="modalExercicios" style="display:none;">...</div>
-  <div class="modal-overlay" id="formModal" style="display:none;">...</div>
+    <!-- Modal de edição -->
+    <div class="modal-overlay" id="formModal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="formModalTitle">Novo Estudo</h3>
+                <button class="close-modal" onclick="closeFormModal()">✕</button>
+            </div>
+            <div class="tabs-container">
+                <div class="tabs-nav">
+                    <button class="tab-btn active" data-tab="tabGeral" onclick="switchFormTab('tabGeral', this)">Geral</button>
+                    <button class="tab-btn" data-tab="tabQuestoes" onclick="switchFormTab('tabQuestoes', this)">Questões</button>
+                </div>
+                <!-- Aba Geral -->
+                <div id="tabGeral" class="tab-content active">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Curso *</label>
+                            <input type="text" id="f_curso" placeholder="Ex: Matemática" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Unidade</label>
+                            <input type="text" id="f_unidade" placeholder="Ex: Equações">
+                        </div>
+                        <div class="form-group">
+                            <label>Conteúdo</label>
+                            <input type="text" id="f_conteudo" placeholder="Ex: Funções">
+                        </div>
+                        <div class="form-group">
+                            <label>Data do Estudo</label>
+                            <input type="date" id="f_dataEstudo">
+                        </div>
+                    </div>
+                </div>
+                <!-- Aba Questões -->
+                <div id="tabQuestoes" class="tab-content">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Quantidade de Questões</label>
+                            <input type="number" id="f_quantidade" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Erros</label>
+                            <input type="number" id="f_erros" min="0" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="btnFormSave" class="save" onclick="salvarEstudo()">Salvar</button>
+                <button type="button" class="btn-cancel" onclick="closeFormModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
-  <script src="script.js"></script>
-  <script>window.addEventListener('load', inicializarApp);</script>
+    <!-- Modal de Questões -->
+    <div class="modal-overlay" id="modalQuestoes" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Questões por Estudo</h3>
+                <button class="close-modal" onclick="fecharModalQuestoes()">✕</button>
+            </div>
+            <div id="conteudoModalQuestoes"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="fecharModalQuestoes()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Desempenho -->
+    <div class="modal-overlay" id="modalDesempenho" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Desempenho por Estudo</h3>
+                <button class="close-modal" onclick="fecharModalDesempenho()">✕</button>
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+                <div class="filter-dropdown-inline" style="flex:1; min-width:120px;">
+                    <select id="filtroDesempenhoCurso" onchange="aplicarFiltrosDesempenho()">
+                        <option value="">Todos os Cursos</option>
+                    </select>
+                </div>
+                <div class="filter-dropdown-inline" style="flex:1; min-width:120px;">
+                    <select id="filtroDesempenhoUnidade" onchange="aplicarFiltrosDesempenho()">
+                        <option value="">Todas as Unidades</option>
+                    </select>
+                </div>
+            </div>
+            <div id="conteudoModalDesempenho"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="fecharModalDesempenho()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const splash = document.getElementById('splashScreen');
+                if (splash) splash.style.display = 'none';
+            }, 2000);
+            inicializarApp();
+        });
+    </script>
 </body>
 </html>
